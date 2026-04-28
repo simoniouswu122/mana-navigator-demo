@@ -161,15 +161,15 @@
 - ✅ Real Claude API 路由已就绪 (等 ANTHROPIC_API_KEY 配置)
 
 ### v0.2 — 真实数据
-- HealthKit / Whoop / Oura 读取
-- food-print-analysis 后端连接 (你已有)
-- Mana 后端 events 流到 /me
-- 至少先连一个 (HealthKit 最简单)
+- **Apple HealthKit** 读取 (HRV / 睡眠 / 心率 / 活动) — 它会聚合 Whoop / Oura / 等
+- food-print-analysis 后端连接 (Simon 已有)
+- Mana 后端 events 流到 `/me`
+- 顺序: HealthKit 第一 → Mana 后端第二
 
 ### v0.3 — 多用户
-- Sign-up + auth (Vercel + Supabase 或 Clerk)
+- **Supabase** auth + database (Postgres + RLS)
 - 每个用户自己的 profile + agent prompts
-- /me 变成 /dashboard, /me 变 demo template
+- `/me` 变成 `/dashboard` (登录后), `/me` 保留为 demo template
 - 真实部署 → 真实使用者
 
 ### v0.4+ (open)
@@ -179,16 +179,18 @@
 
 ---
 
-## Open questions (待 Simon 决定)
+## Resolved decisions (2026-04-28)
 
-1. **第一个真实 wearable 接什么?** Apple HealthKit 最简单 (iOS 用户) / Oura 数据最干净 / Whoop 已有 API
-2. **Sign-up 走 Clerk / Auth0 / Supabase / 自己写?**
-3. **`/me` 上线后, 公开 `/` 的 3 个 demo persona 还保留吗?** 我倾向保留 — 是 funnel 入口
-4. **真名字 + 真数据放公网 OK 吗?** Simon 现在用真名字 + plausible body comp 数字
-5. **Compliance 的算法?** 简单加权 (蛋白完成 + 训练完成 + 睡眠达标 = score) 还是更细
-6. **Drift 检测的阈值?** ±10% 是 on-track? ±20% 是 drift? 需不需要让用户自己调
-7. **Chat 改 schedule 时, 用户要不要确认?** 直接改 vs 显示"建议改成这样, 接受 / 拒绝"
-8. **公开 `/me` 还是 `/me` gate 在 sign-up 之后?** v0.1 公开 (Simon 自己 demo), v0.2+ gate
+| # | 问题 | 决定 |
+|---|---|---|
+| 1 | 第一个 wearable | **Apple HealthKit** — iOS 上能连 Whoop / Oura / 任何兼容设备, 一个集成点拿到所有 |
+| 2 | Sign-up 方案 | **Supabase** (auth + Postgres + RLS, 一站式) |
+| 3 | `/me` vs 3 demo persona | **都保留** — 现在 `/` 是 3 persona 内容创作版本, `/me` 是 Simon 真实使用版本. 后期可能完全分开成两个 deployment |
+| 4 | 真名 + 真数据公开 | ✅ OK — Simon 真名 + 真实 body comp 数字 |
+| 5 | Compliance 算法 | **简单加权**: 蛋白达标 + 训练完成 + 睡眠达目标. 三项各 33% 起步, 后期可细化 |
+| 6 | Drift 检测阈值 | **默认 ±10% on-track / ±20% drift, 用户可自己调百分比** |
+| 7 | Chat 改 schedule | **必须用户确认** — 显示"建议改成这样, 接受 / 拒绝", 不直接改 |
+| 8 | `/me` 公开 vs gate | **公开 OK** (现在), 后期加 sign-up 之后才 gate |
 
 ---
 
@@ -196,13 +198,14 @@
 
 `/me` 重构完成 = 以下全部成立:
 
-- [ ] **Today 屏幕**显示 compliance score (top right) 永远可见
-- [ ] **Today 屏幕**显示 outcome 进度卡片 (top, "12 周还差 9 周, 51% 完成")
-- [ ] **Timeline** 区分: 已发生的 (✅ / ⚠️ drift) vs 未来的 (⏳ / 已自动调整)
-- [ ] **Drift 检测** 至少 mock 一个 case (午餐超 200 卡, 系统重算晚餐)
-- [ ] **Chat** 能在对话中真的修改 timeline (不只是文字回复, schedule 也变)
-- [ ] **Other tabs** 仍然存在 (Diet/Exercise/Sleep/Progress) 但作为 drilldown, 不是平级
-- [ ] **Open questions** 上面 8 个里面至少回答 3 个 (drift 阈值 / chat 是否需确认 / 等)
+- [ ] **Today 屏幕**显示 compliance score (top, 加权: 蛋白 + 训练 + 睡眠) 永远可见
+- [ ] **Today 屏幕**显示 outcome 进度卡片 (12 周轨迹缩略, "51% 完成")
+- [ ] **Timeline** 区分 4 种状态: ✅ 已完成 / ⚠️ drift / ⏳ 即将到来 / 🔄 已自动调整
+- [ ] **Drift 检测** mock 一个 case (午餐 +250 卡 → 系统已重算晚餐 -100 卡)
+- [ ] **Chat 改 schedule 流程**: 提议 → preview before/after → 用户接受/拒绝
+- [ ] **Drilldown row** 在 Today 底部 (Diet/Exercise/Sleep/Progress 缩略卡, 点击进入详情)
+- [ ] **Settings cog** (top right) 至少包含 drift threshold slider (默认 ±10/20, 用户可调)
+- [ ] **8 open questions** 已全部 resolve, 写在 doc 里
 
 ---
 
