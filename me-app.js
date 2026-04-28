@@ -1,58 +1,87 @@
-// Simon's personal Mana experience · main controller
-// Handles: tab switching, data rendering, charts, chat
+// Simon's personal Mana experience · v0.1
+// Compliance · Drift · Chat-mutation-with-confirm · Settings
 
 let currentTab = 'today';
 let chatMessages = [];
 let chartsRendered = {};
+let proposedChanges = null; // staged changes awaiting user confirm
 
 // ========== INIT ==========
 document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  renderTopStatus();
   renderTodayTab();
   renderDietTab();
   renderExerciseTab();
   renderSleepTab();
-  renderProgressTab();
   switchTab('today');
 });
+
+// ========== TOP STATUS (compliance + outcome + streak) ==========
+function renderTopStatus() {
+  const c = computeCompliance();
+  document.getElementById('complianceScore').textContent = c.overall;
+  document.getElementById('complianceMeta').textContent =
+    `蛋白 ${c.proteinPct}% · 训练 ${c.trainingPct}% · 睡眠 ${c.sleepPct}%`;
+
+  const o = computeOutcomeProgress();
+  document.getElementById('outcomePct').textContent = o.pct;
+  document.getElementById('outcomeMeta').textContent = `已掉 ${o.currentLoss}/${o.targetLoss} kg · ${o.weeksLeft} 周还有`;
+
+  // Drilldown minis
+  document.getElementById('dietMini').textContent = `${SIMON.diet.today.calories} / ${SIMON.diet.targetCalories} 卡`;
+  document.getElementById('exerciseMini').textContent = `今日 ${SIMON.exercise.today.type}`;
+  document.getElementById('sleepMini').textContent = `昨晚 ${SIMON.sleep.lastNight.duration}h · 质量 ${SIMON.sleep.lastNight.quality}`;
+  document.getElementById('progressMini').textContent = `${o.weeksDone}/${o.weeksTotal} 周 · ${o.pct}%`;
+}
+
+function showComplianceBreakdown() {
+  const c = computeCompliance();
+  const html = c.breakdown.map(b => {
+    const color = b.pct >= 80 ? 'emerald' : b.pct >= 50 ? 'amber' : 'red';
+    return `
+      <div>
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="text-sm font-semibold">${b.label}</span>
+          <span class="text-xs text-stone-500">${typeof b.current === 'number' ? b.current : b.current} ${b.unit ? '/ ' + b.target + b.unit : ''}</span>
+        </div>
+        <div class="h-2 bg-stone-100 rounded-full overflow-hidden">
+          <div class="h-full bg-${color}-500" style="width: ${b.pct}%"></div>
+        </div>
+        <div class="text-xs text-${color}-600 font-semibold mt-1">${b.pct}%</div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('complianceBreakdown').innerHTML = html;
+  document.getElementById('complianceModal').classList.remove('hidden');
+}
+function closeCompliance() { document.getElementById('complianceModal').classList.add('hidden'); }
 
 // ========== TAB SWITCHING ==========
 function switchTab(tab) {
   currentTab = tab;
-  // Update buttons
   document.querySelectorAll('.tab-btn').forEach(b => {
     if (b.dataset.tab === tab) {
-      b.classList.add('border-stone-900', 'text-stone-900');
-      b.classList.remove('border-transparent', 'text-stone-500');
+      b.classList.add('border-stone-900', 'text-stone-900', 'font-bold');
+      b.classList.remove('border-transparent', 'text-stone-500', 'font-medium');
     } else {
       b.classList.add('border-transparent', 'text-stone-500');
-      b.classList.remove('border-stone-900', 'text-stone-900');
+      b.classList.remove('border-stone-900', 'text-stone-900', 'font-bold');
     }
   });
-
-  // Update panes
   document.querySelectorAll('.tab-pane').forEach(p => {
-    if (p.id === `tab-${tab}`) {
-      p.classList.remove('hidden');
-      p.classList.add('fade-in');
-    } else {
-      p.classList.add('hidden');
-      p.classList.remove('fade-in');
-    }
+    if (p.id === `tab-${tab}`) { p.classList.remove('hidden'); p.classList.add('fade-in'); }
+    else { p.classList.add('hidden'); p.classList.remove('fade-in'); }
   });
-
-  // Render charts on first view
   setTimeout(() => renderChartsForTab(tab), 50);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function renderChartsForTab(tab) {
   if (chartsRendered[tab]) return;
   chartsRendered[tab] = true;
   if (tab === 'diet') renderDietChart();
-  if (tab === 'exercise') {
-    renderVolumeChart();
-    renderHRVChart();
-    renderStrengthChart();
-  }
+  if (tab === 'exercise') { renderVolumeChart(); renderHRVChart(); renderStrengthChart(); }
   if (tab === 'sleep') renderSleepChart();
   if (tab === 'progress') renderProgressChart();
 }
@@ -60,21 +89,77 @@ function renderChartsForTab(tab) {
 // ========== TODAY TAB ==========
 function renderTodayTab() {
   document.getElementById('todayTradeoff').textContent = SIMON.tradeoff;
+  renderTimeline();
+}
 
+function renderTimeline() {
   const timeline = document.getElementById('todayTimeline');
-  timeline.innerHTML = SIMON.schedule.map((item, i) => `
-    <button onclick="showWhy(${i})" class="w-full text-left p-4 hover:bg-stone-50 transition flex items-start gap-4 group">
-      <div class="flex flex-col items-center w-16 flex-shrink-0">
-        <div class="text-xs font-semibold text-stone-500">${item.time}</div>
-        <div class="text-2xl mt-1">${item.icon}</div>
+  timeline.innerHTML = SIMON.schedule.map((item, i) => {
+    const stateMarker = renderStateMarker(item);
+    const stateBg = item.status === 'drift' ? 'bg-orange-50' :
+                    item.status === 'adjusted' ? 'bg-blue-50' :
+                    item.status === 'done' ? 'bg-emerald-50/40' : '';
+    return `
+      <button onclick="showWhy(${i})" class="w-full text-left p-4 hover:bg-stone-50 transition flex items-start gap-4 group ${stateBg}">
+        <div class="flex flex-col items-center w-16 flex-shrink-0">
+          <div class="text-xs font-semibold text-stone-500">${item.time}</div>
+          <div class="text-2xl mt-1">${item.icon}</div>
+          <div class="mt-1">${stateMarker}</div>
+        </div>
+        <div class="flex-1 min-w-0">
+          ${renderTimelineItemContent(item)}
+        </div>
+      </button>
+    `;
+  }).join('');
+}
+
+function renderStateMarker(item) {
+  switch (item.status) {
+    case 'done': return '<span class="text-xs text-emerald-700 font-semibold">✅</span>';
+    case 'drift': return '<span class="text-xs text-orange-700 font-semibold animate-pulse">⚠️</span>';
+    case 'upcoming': return '<span class="text-xs text-stone-500 font-semibold">⏳</span>';
+    case 'adjusted': return '<span class="text-xs text-blue-700 font-semibold">🔄</span>';
+    default: return '';
+  }
+}
+
+function renderTimelineItemContent(item) {
+  if (item.status === 'drift') {
+    return `
+      <div class="font-semibold text-stone-800 line-through opacity-60">${item.what}</div>
+      <div class="text-sm text-stone-500 line-through opacity-60">${item.detail}</div>
+      <div class="mt-2 bg-orange-100 border border-orange-200 rounded-lg p-2.5">
+        <div class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-0.5">实际 ${item.actual.time}</div>
+        <div class="font-semibold text-sm text-orange-900">${item.actual.what}</div>
+        <div class="text-xs text-orange-700 mt-0.5">${item.actual.calories} 大卡 · ${item.actual.protein}g 蛋白 · ${item.actual.drift.complianceNote}</div>
       </div>
-      <div class="flex-1 min-w-0">
-        <div class="font-semibold ${item.highlight ? 'text-stone-900' : 'text-stone-800'}">${item.what}${item.highlight ? ' <span class="ml-1 inline-block px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded font-semibold">关键节点</span>' : ''}</div>
-        ${item.detail ? `<div class="text-sm text-stone-500 mt-1">${item.detail}</div>` : ''}
-        <div class="mt-1.5 text-xs text-stone-400 group-hover:text-stone-600">${item.agent} · 点击看「为什么」</div>
+    `;
+  }
+  if (item.status === 'adjusted') {
+    return `
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-bold text-blue-700 uppercase tracking-wider px-1.5 py-0.5 bg-blue-100 rounded">已自动调整</span>
       </div>
-    </button>
-  `).join('');
+      <div class="font-semibold text-stone-800 mt-1">${item.what}</div>
+      <div class="text-sm text-stone-500">${item.detail}</div>
+      <div class="text-xs text-blue-700 mt-1.5">${item.adjustedFrom.detail} → 现在</div>
+      <div class="text-xs text-stone-500 mt-1">${item.adjustedFrom.reason}</div>
+    `;
+  }
+  if (item.status === 'done') {
+    return `
+      <div class="font-semibold text-stone-800">${item.what}</div>
+      ${item.detail ? `<div class="text-sm text-stone-500">${item.detail}</div>` : ''}
+      <div class="text-xs text-emerald-700 mt-1">${item.actual.complianceNote}</div>
+    `;
+  }
+  // upcoming
+  return `
+    <div class="font-semibold ${item.highlight ? 'text-stone-900' : 'text-stone-800'}">${item.what}${item.highlight ? ' <span class="ml-1 inline-block px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded font-semibold">关键节点</span>' : ''}</div>
+    ${item.detail ? `<div class="text-sm text-stone-500 mt-0.5">${item.detail}</div>` : ''}
+    ${item.countdown ? `<div class="text-xs text-stone-400 mt-1">${item.countdown}</div>` : ''}
+  `;
 }
 
 function showWhy(index) {
@@ -109,19 +194,15 @@ function renderDietTab() {
           <span class="text-sm font-semibold">${m.name}</span>
           <span class="text-xs text-stone-500"><span class="font-bold text-stone-900">${m.current}</span> / ${m.target} ${m.unit}</span>
         </div>
-        <div class="h-2 bg-stone-100 rounded-full overflow-hidden">
-          <div class="h-full ${m.color}" style="width: ${pct}%"></div>
-        </div>
+        <div class="h-2 bg-stone-100 rounded-full overflow-hidden"><div class="h-full ${m.color}" style="width: ${pct}%"></div></div>
       </div>
     `;
   }).join('');
-
-  // Recent meals
   document.getElementById('recentMeals').innerHTML = SIMON.diet.recentMeals.map(m => `
-    <div class="p-4 flex items-center gap-4 hover:bg-stone-50 transition">
+    <div class="p-4 flex items-center gap-4 hover:bg-stone-50 transition ${m.drift ? 'bg-orange-50/40' : ''}">
       <div class="w-12 h-12 bg-stone-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">${m.photo}</div>
       <div class="flex-1 min-w-0">
-        <div class="font-semibold text-sm">${m.name}</div>
+        <div class="font-semibold text-sm">${m.name}${m.drift ? ' <span class="ml-1 inline-block px-1.5 py-0.5 bg-orange-200 text-orange-900 text-[10px] rounded font-bold">DRIFT</span>' : ''}</div>
         <div class="text-xs text-stone-500 mt-0.5">${m.date} · ${m.time}</div>
       </div>
       <div class="text-right">
@@ -135,21 +216,18 @@ function renderDietTab() {
 function renderDietChart() {
   const ctx = document.getElementById('dietWeekChart');
   if (!ctx) return;
-  const days = SIMON.diet.week.map(d => d.day);
-  const cals = SIMON.diet.week.map(d => d.cal);
-  const proteins = SIMON.diet.week.map(d => d.protein);
+  const data = SIMON.diet.week;
   new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: days,
+      labels: data.map(d => d.day),
       datasets: [
-        { label: '热量', data: cals, backgroundColor: '#1c1917', yAxisID: 'y1', barPercentage: 0.6 },
-        { label: '蛋白 (g)', data: proteins, backgroundColor: '#dc2626', yAxisID: 'y2', barPercentage: 0.6 }
+        { label: '热量', data: data.map(d => d.cal), backgroundColor: '#1c1917', yAxisID: 'y1', barPercentage: 0.6 },
+        { label: '蛋白 (g)', data: data.map(d => d.protein), backgroundColor: '#dc2626', yAxisID: 'y2', barPercentage: 0.6 }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
         y1: { type: 'linear', position: 'left', title: { display: true, text: 'kcal' }, beginAtZero: true },
@@ -176,189 +254,92 @@ function renderExerciseTab() {
 }
 
 function renderVolumeChart() {
-  const ctx = document.getElementById('volumeChart');
-  if (!ctx) return;
+  const ctx = document.getElementById('volumeChart'); if (!ctx) return;
   const data = SIMON.exercise.weekVolume;
   new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: data.map(d => d.day),
-      datasets: [{
-        label: 'Volume',
-        data: data.map(d => d.volume),
-        backgroundColor: data.map(d => d.current ? '#dc2626' : (d.volume > 0 ? '#1c1917' : '#e7e5e4')),
-        barPercentage: 0.7
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: (ctx) => data[ctx.dataIndex].type } } },
-      scales: { y: { beginAtZero: true, title: { display: true, text: 'kg-reps' } } }
-    }
+    data: { labels: data.map(d => d.day), datasets: [{ label: 'Volume', data: data.map(d => d.volume), backgroundColor: data.map(d => d.current ? '#dc2626' : (d.volume > 0 ? '#1c1917' : '#e7e5e4')), barPercentage: 0.7 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: (ctx) => data[ctx.dataIndex].type } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'kg-reps' } } } }
   });
 }
 
 function renderHRVChart() {
-  const ctx = document.getElementById('hrvChart');
-  if (!ctx) return;
+  const ctx = document.getElementById('hrvChart'); if (!ctx) return;
   const data = SIMON.exercise.hrv;
   const labels = data.map((_, i) => `D-${data.length - 1 - i}`);
   labels[labels.length - 1] = '今';
   new Chart(ctx, {
     type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'HRV',
-          data,
-          borderColor: '#dc2626',
-          backgroundColor: 'rgba(220, 38, 38, 0.1)',
-          tension: 0.3,
-          pointRadius: data.map((_, i) => i === data.length - 1 ? 6 : 3),
-          pointBackgroundColor: data.map((_, i) => i === data.length - 1 ? '#dc2626' : '#fff'),
-          pointBorderColor: '#dc2626',
-          fill: true
-        },
-        {
-          label: '基线',
-          data: Array(data.length).fill(62),
-          borderColor: '#a8a29e',
-          borderDash: [5, 5],
-          pointRadius: 0,
-          fill: false
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { y: { title: { display: true, text: 'ms' } } }
-    }
+    data: { labels, datasets: [
+      { label: 'HRV', data, borderColor: '#dc2626', backgroundColor: 'rgba(220, 38, 38, 0.1)', tension: 0.3, pointRadius: data.map((_, i) => i === data.length - 1 ? 6 : 3), pointBackgroundColor: data.map((_, i) => i === data.length - 1 ? '#dc2626' : '#fff'), pointBorderColor: '#dc2626', fill: true },
+      { label: '基线', data: Array(data.length).fill(62), borderColor: '#a8a29e', borderDash: [5, 5], pointRadius: 0, fill: false }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { title: { display: true, text: 'ms' } } } }
   });
 }
 
 function renderStrengthChart() {
-  const ctx = document.getElementById('strengthChart');
-  if (!ctx) return;
+  const ctx = document.getElementById('strengthChart'); if (!ctx) return;
   const sp = SIMON.exercise.strengthProgression;
   const labels = sp.squat.map((_, i) => `W${i + 1}`);
   new Chart(ctx, {
     type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: '深蹲', data: sp.squat, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', tension: 0.3 },
-        { label: '卧推', data: sp.bench, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', tension: 0.3 },
-        { label: '硬拉', data: sp.deadlift, borderColor: '#1c1917', backgroundColor: 'rgba(28,25,23,0.1)', tension: 0.3 }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } },
-      scales: { y: { title: { display: true, text: 'kg' } } }
-    }
+    data: { labels, datasets: [
+      { label: '深蹲', data: sp.squat, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', tension: 0.3 },
+      { label: '卧推', data: sp.bench, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', tension: 0.3 },
+      { label: '硬拉', data: sp.deadlift, borderColor: '#1c1917', backgroundColor: 'rgba(28,25,23,0.1)', tension: 0.3 }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } }, scales: { y: { title: { display: true, text: 'kg' } } } }
   });
 }
 
 // ========== SLEEP TAB ==========
-function renderSleepTab() {
-  // Static content already in HTML, just chart
-}
-
+function renderSleepTab() {}
 function renderSleepChart() {
-  const ctx = document.getElementById('sleepChart');
-  if (!ctx) return;
+  const ctx = document.getElementById('sleepChart'); if (!ctx) return;
   const data = SIMON.sleep.week;
   new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: data.map(d => d.day),
-      datasets: [
-        {
-          label: '时长 (h)',
-          data: data.map(d => d.duration),
-          backgroundColor: data.map(d => d.current ? '#dc2626' : '#6366f1'),
-          yAxisID: 'y1',
-          barPercentage: 0.6
-        },
-        {
-          label: '质量分',
-          data: data.map(d => d.quality),
-          type: 'line',
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          yAxisID: 'y2',
-          tension: 0.3,
-          pointRadius: 4
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom' } },
-      scales: {
-        y1: { type: 'linear', position: 'left', title: { display: true, text: 'h' }, beginAtZero: true, max: 10 },
-        y2: { type: 'linear', position: 'right', title: { display: true, text: 'quality' }, grid: { display: false }, min: 50, max: 100 }
-      }
-    }
+    data: { labels: data.map(d => d.day), datasets: [
+      { label: '时长 (h)', data: data.map(d => d.duration), backgroundColor: data.map(d => d.current ? '#dc2626' : '#6366f1'), yAxisID: 'y1', barPercentage: 0.6 },
+      { label: '质量分', data: data.map(d => d.quality), type: 'line', borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', yAxisID: 'y2', tension: 0.3, pointRadius: 4 }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: {
+      y1: { type: 'linear', position: 'left', title: { display: true, text: 'h' }, beginAtZero: true, max: 10 },
+      y2: { type: 'linear', position: 'right', title: { display: true, text: 'quality' }, grid: { display: false }, min: 50, max: 100 }
+    } }
   });
 }
 
 // ========== PROGRESS TAB ==========
-function renderProgressTab() {
-  // Static cards in HTML
-}
-
 function renderProgressChart() {
-  const ctx = document.getElementById('progressChart');
-  if (!ctx) return;
-  const w = SIMON.body.weight;
-  const bf = SIMON.body.bodyFat;
-  const lm = SIMON.body.leanMass;
+  const ctx = document.getElementById('progressChart'); if (!ctx) return;
+  const w = SIMON.body.weight, bf = SIMON.body.bodyFat, lm = SIMON.body.leanMass;
   const labels = Array.from({ length: 12 }, (_, i) => `W${i}`);
-
-  // Combine history + projection
   const weightActual = [...w.history, ...Array(8).fill(null)];
   const weightProj = [...Array(3).fill(null), ...w.projection];
-
   const bfActual = [...bf.history, ...Array(8).fill(null)];
   const bfProj = [...Array(3).fill(null), ...bf.projection];
-
   const lmActual = [...lm.history, ...Array(8).fill(null)];
   const lmProj = [...Array(3).fill(null), ...lm.projection];
-
   new Chart(ctx, {
     type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: '体重 (kg)', data: weightActual, borderColor: '#1c1917', backgroundColor: 'rgba(28,25,23,0.1)', tension: 0.3, pointRadius: 4, yAxisID: 'y1' },
-        { label: '体重 预测', data: weightProj, borderColor: '#1c1917', borderDash: [5, 5], pointRadius: 2, yAxisID: 'y1' },
-        { label: '体脂率 (%)', data: bfActual, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', tension: 0.3, pointRadius: 4, yAxisID: 'y2' },
-        { label: '体脂率 预测', data: bfProj, borderColor: '#dc2626', borderDash: [5, 5], pointRadius: 2, yAxisID: 'y2' },
-        { label: '瘦体重 (kg)', data: lmActual, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.3, pointRadius: 4, yAxisID: 'y1' },
-        { label: '瘦体重 预测', data: lmProj, borderColor: '#10b981', borderDash: [5, 5], pointRadius: 2, yAxisID: 'y1' }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10, filter: l => !l.text.includes('预测') } } },
-      scales: {
-        y1: { type: 'linear', position: 'left', title: { display: true, text: 'kg' } },
-        y2: { type: 'linear', position: 'right', title: { display: true, text: '%' }, grid: { display: false } }
-      }
-    }
+    data: { labels, datasets: [
+      { label: '体重 (kg)', data: weightActual, borderColor: '#1c1917', backgroundColor: 'rgba(28,25,23,0.1)', tension: 0.3, pointRadius: 4, yAxisID: 'y1' },
+      { label: '体重 预测', data: weightProj, borderColor: '#1c1917', borderDash: [5, 5], pointRadius: 2, yAxisID: 'y1' },
+      { label: '体脂率 (%)', data: bfActual, borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', tension: 0.3, pointRadius: 4, yAxisID: 'y2' },
+      { label: '体脂率 预测', data: bfProj, borderColor: '#dc2626', borderDash: [5, 5], pointRadius: 2, yAxisID: 'y2' },
+      { label: '瘦体重 (kg)', data: lmActual, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.3, pointRadius: 4, yAxisID: 'y1' },
+      { label: '瘦体重 预测', data: lmProj, borderColor: '#10b981', borderDash: [5, 5], pointRadius: 2, yAxisID: 'y1' }
+    ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10, filter: l => !l.text.includes('预测') } } }, scales: {
+      y1: { type: 'linear', position: 'left', title: { display: true, text: 'kg' } },
+      y2: { type: 'linear', position: 'right', title: { display: true, text: '%' }, grid: { display: false } }
+    } }
   });
 }
 
-// ========== CHAT ==========
+// ========== CHAT (with mutation + confirm) ==========
 function toggleChat() {
   const panel = document.getElementById('chatPanel');
   panel.classList.toggle('hidden');
@@ -384,21 +365,19 @@ async function sendChatMessage() {
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
-
-  // Append user message to UI
   appendMessage('user', text);
-
-  // Append typing indicator
   const typingEl = appendTyping();
-
-  // Track in history
   chatMessages.push({ role: 'user', content: text });
-
   try {
-    const reply = await callNavigator(chatMessages);
+    const result = await callNavigator(chatMessages);
     typingEl.remove();
-    appendMessage('navigator', reply);
-    chatMessages.push({ role: 'assistant', content: reply });
+    appendMessage('navigator', result.reply);
+    chatMessages.push({ role: 'assistant', content: result.reply });
+    // If there are proposed schedule changes, render preview card
+    if (result.proposedChanges && result.proposedChanges.length > 0) {
+      proposedChanges = result.proposedChanges;
+      appendProposalCard(result.proposedChanges);
+    }
   } catch (err) {
     typingEl.remove();
     appendMessage('navigator', '⚠️ 出错了。再试一次？(' + err.message + ')');
@@ -438,123 +417,188 @@ function appendTyping() {
   return div;
 }
 
+function appendProposalCard(changes) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'bg-blue-50 border-2 border-blue-300 rounded-xl p-3 slide-up max-w-[95%]';
+  div.id = 'pendingProposal';
+  const summary = changes.map(c => {
+    if (c.type === 'remove') {
+      const item = SIMON.schedule.find(s => s.id === c.id);
+      return `<div class="flex items-center gap-2 text-xs"><span class="text-red-600 font-bold">−</span><span class="line-through opacity-60">${item?.time} ${item?.what?.split('·')[0]}</span></div>`;
+    }
+    if (c.type === 'modify') {
+      const item = SIMON.schedule.find(s => s.id === c.id);
+      return `<div class="flex items-start gap-2 text-xs"><span class="text-blue-600 font-bold">~</span><div><div class="line-through opacity-50">${item?.time} ${item?.detail || item?.what}</div><div class="font-semibold mt-0.5">→ ${c.newDetail || c.newWhat}</div></div></div>`;
+    }
+    return '';
+  }).join('');
+  div.innerHTML = `
+    <div class="text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-2">📋 建议改动 · 等你确认</div>
+    <div class="space-y-1.5 mb-3">${summary}</div>
+    <div class="flex gap-2">
+      <button onclick="acceptProposal()" class="flex-1 px-3 py-1.5 bg-stone-900 text-white text-xs font-bold rounded-lg hover:bg-stone-700">✓ 接受</button>
+      <button onclick="rejectProposal()" class="flex-1 px-3 py-1.5 bg-white border border-stone-300 text-xs font-bold rounded-lg hover:bg-stone-50">✕ 拒绝</button>
+    </div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function acceptProposal() {
+  if (!proposedChanges) return;
+  // Apply changes to local state
+  for (const change of proposedChanges) {
+    const idx = SIMON.schedule.findIndex(s => s.id === change.id);
+    if (idx === -1) continue;
+    if (change.type === 'remove') {
+      SIMON.schedule.splice(idx, 1);
+    } else if (change.type === 'modify') {
+      const item = SIMON.schedule[idx];
+      item.adjustedFrom = { detail: item.detail, reason: '你接受了对话中的调整' };
+      item.what = change.newWhat || item.what;
+      item.detail = change.newDetail || item.detail;
+      item.status = 'adjusted';
+    }
+  }
+  proposedChanges = null;
+  document.getElementById('pendingProposal')?.remove();
+  appendMessage('navigator', '✓ 已更新今日计划. 可以回 Today 屏幕看新版.');
+  // Re-render timeline
+  renderTimeline();
+  renderTopStatus();
+}
+
+function rejectProposal() {
+  proposedChanges = null;
+  document.getElementById('pendingProposal')?.remove();
+  appendMessage('navigator', '好的, 计划保持不变. 还需要其他调整吗?');
+}
+
 async function callNavigator(messages) {
-  // Try the API route first; fall back to client-side mock
   try {
     const resp = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, profile: getProfileSnapshot() })
     });
     if (!resp.ok) throw new Error('API ' + resp.status);
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    return data.reply;
+    return data;
   } catch (err) {
-    // Fallback: local mock based on keywords
     return mockNavigatorReply(messages[messages.length - 1].content);
   }
 }
 
 function getProfileSnapshot() {
   return {
-    name: SIMON.name,
-    goal: SIMON.goalLabel,
-    weeklyFocus: SIMON.weeklyFocus,
-    todayContext: SIMON.todayContext,
-    todayTradeoff: SIMON.tradeoff,
+    name: SIMON.name, goal: SIMON.goalLabel, weeklyFocus: SIMON.weeklyFocus,
+    todayContext: SIMON.todayContext, todayTradeoff: SIMON.tradeoff,
     bodyComp: { weight: SIMON.body.weight.current, bodyFat: SIMON.body.bodyFat.current, leanMass: SIMON.body.leanMass.current },
-    macrosToday: SIMON.diet.today,
-    macrosTarget: { calories: SIMON.diet.targetCalories, protein: SIMON.diet.targetProtein }
+    macrosToday: SIMON.diet.today, macrosTarget: { calories: SIMON.diet.targetCalories, protein: SIMON.diet.targetProtein }
   };
 }
 
-// Mock fallback for when /api/chat is unavailable
 function mockNavigatorReply(text) {
   const t = text.toLowerCase();
   if (t.includes('出去吃') || t.includes('饭局') || t.includes('饭店') || t.includes('应酬')) {
-    return `好的，我帮你重新排今天剩下的：
+    return {
+      reply: `好的，我帮你重新排今天剩下的：
 
-📌 改动：
-• 跳过 15:00 的训练前餐（鸡胸+杏仁）
-• 17:30 训练保持不变 — 但训练后晚餐改成训练后立即喝一杯 30g 乳清蛋白
-• 出去吃饭时优先选高蛋白（牛排/鱼/烤鸡）+ 蔬菜，碳水控制在 ~80g
+📌 改动建议:
+• 跳过 15:00 的训练前餐（你已经吃过了）
+• 19:00 训练后晚餐改成外食 (~700 大卡, 主菜选高蛋白)
 • 21:00 睡前蛋白照常
 
-📌 取舍：
-今天热量可能略超 200-300 大卡（社交场不可控）。明天午餐砍 200g 米饭，本周还能稳住 deficit。
-
-享受你的饭局 — 减肥不是受苦，是会调整。`;
+📌 取舍:
+今天热量可能略超 200-300 卡 (社交场不可控). 明天午餐砍 200g 米饭可以补回. 蛋白还是要够 200g.`,
+      proposedChanges: [
+        { type: 'modify', id: 'dinner', newWhat: '外食晚餐 · 高蛋白 (牛排 / 鱼) + 蔬菜 + 适量碳水', newDetail: '~700 大卡 · 50g 蛋白' }
+      ]
+    };
   }
   if (t.includes('累') || t.includes('不想') || t.includes('懒')) {
-    return `理解。睡眠 Agent 也确认昨晚 HRV 略低（58 vs 基线 62）。
+    return {
+      reply: `理解. HRV 58 (基线 62) 也确认昨晚恢复差.
 
-📌 今天的版本（轻量）：
-• 训练改成 30 min 轻松 Zone 2 慢跑（替代 pull day）
+📌 改动建议:
+• 训练改成轻松 Zone 2 慢跑 30 分钟
 • Pull day 推到明天
-• 蛋白照常 200g — 这个不能让
+• 蛋白照常 200g — 不能让
 
-📌 取舍：
-本周训练量会少一次，但 recomp 是 12 周的事，不是一周。睡眠 + 蛋白能保住的话，这周仍然有效。
-
-明天你会感觉好很多。`;
+📌 取舍:
+本周训练量会少一次, 但 recomp 是 12 周的事. 今晚 8h 睡眠 + 蛋白能保住的话, 这周仍然有效.`,
+      proposedChanges: [
+        { type: 'modify', id: 'training', newWhat: 'Zone 2 慢跑 30 min (替代 Pull)', newDetail: '低强度恢复' }
+      ]
+    };
   }
-  if (t.includes('为什么') || t.includes('解释')) {
-    return `今天的核心逻辑：
+  if (t.includes('为什么') && (t.includes('调整') || t.includes('晚餐'))) {
+    return {
+      reply: `逻辑链:
 
-🧠 你这周的目标：增肌 + 减脂（recomp）— Week 3/12
-📊 昨晚信号：睡眠 7.2h（略低），HRV 58 vs 基线 62（↓ 6%）
-📋 训练上下文：昨天 Push，今天 Pull（轮动逻辑）
+🧠 你午餐多吃了 250 卡 (850 vs 计划 600)
+📊 今日总热量目标 2300, 早午加起来已经 1675
+📋 剩下还有训练后晚餐 + 睡前蛋白 = 800 卡空间
+✂️ 把晚餐从 650 卡降到 550 卡 = 削 100 卡 → 总量 2275 卡 ≈ 目标
+🔒 蛋白量目标不变 (200g) — 削的是碳水 (米饭 200g → 150g)
 
-📌 决策：
-• 训练保持但不冒险加大重量（HRV 略低）
-• 蛋白 200g 不可妥协（recomp 的硬指标）
-• 训练后晚餐高蛋白高碳水（蛋白合成窗口）
-• 今晚必须 8h 睡眠（补回昨晚的赤字）
-
-3 个 Agent 都同意。我做最终的"什么告诉你 / 什么不告诉你"的取舍。`;
+为什么是晚餐而不是早餐? — 早餐已经吃了, 没法改.
+为什么不 skip 加餐? — 加餐已经在 15:00 吃了.
+唯一能调的就是接下来的两餐. 选晚餐削是因为它的总量最大.`,
+      proposedChanges: null
+    };
   }
-  if (t.includes('为什么') && t.includes('pull')) {
-    return `运动 Agent 用的是 Push/Pull/Legs 轮动：
-• 周二：Push（胸 + 肩 + 三头）
-• 周四：Legs（腿 + 屁股）
-• 周日：Push
-• 今天（周一）：Pull（背 + 二头）
+  return {
+    reply: `让我把你的请求分发给 3 个 Agent...
 
-逻辑：每个肌群每周练 2 次，恢复 ~48-72 小时。今天 pull 可以让昨天 push 的胸肩肩三头继续恢复。
+我注意到你说: "${text}"
 
-如果你觉得疲劳大于动力 — 我们可以推迟。`;
-  }
-  if (t.includes('蛋白') || t.includes('protein')) {
-    return `你今天吃了 184g 蛋白（目标 200g）。还差 16g。
+如果你能告诉我具体要调整哪一项 (饮食 / 训练 / 睡眠), 我可以更精准地帮你重排.
 
-剩下的来源：
-• 训练后晚餐：50g（鸡胸 150g）
-• 睡前蛋白：25g（希腊酸奶或酪蛋白）
+也可以试试上面的快捷按钮.
 
-按计划走的话，你今天会到 ~209g — 略超目标，但 recomp 期可以。
-
-蛋白是 recomp 唯一不能让的指标。其他都可以调。`;
-  }
-  // Default
-  return `让我把你的请求分发给 3 个 Agent...
-
-我注意到你说："${text}"
-
-如果你能告诉我具体是想调整哪一项（饮食 / 训练 / 睡眠），或者今天遇到什么具体情况，我可以更精准地帮你重排。
-
-也可以试试上面的快捷按钮。
-
-(💡 真实 Claude API 集成已就绪 — 需要你在 Vercel 设置 ANTHROPIC_API_KEY 环境变量)`;
+(💡 真实 Claude API 集成已就绪 — 需要在 Vercel 设置 ANTHROPIC_API_KEY 环境变量)`,
+    proposedChanges: null
+  };
 }
 
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+// ========== SETTINGS ==========
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('mana_settings');
+    if (saved) {
+      const s = JSON.parse(saved);
+      SIMON.settings = { ...SIMON.settings, ...s };
+    }
+  } catch (e) {}
+}
+function openSettings() {
+  document.getElementById('onTrackSlider').value = SIMON.settings.driftThresholdOnTrack;
+  document.getElementById('alertSlider').value = SIMON.settings.driftThresholdAlert;
+  document.getElementById('onTrackValue').textContent = `±${SIMON.settings.driftThresholdOnTrack}%`;
+  document.getElementById('alertValue').textContent = `±${SIMON.settings.driftThresholdAlert}%`;
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+function saveSettings() {
+  SIMON.settings.driftThresholdOnTrack = parseInt(document.getElementById('onTrackSlider').value);
+  SIMON.settings.driftThresholdAlert = parseInt(document.getElementById('alertSlider').value);
+  try { localStorage.setItem('mana_settings', JSON.stringify(SIMON.settings)); } catch (e) {}
+  closeSettings();
 }
 
-// Keyboard ESC closes modal
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'onTrackSlider') document.getElementById('onTrackValue').textContent = `±${e.target.value}%`;
+  if (e.target.id === 'alertSlider') document.getElementById('alertValue').textContent = `±${e.target.value}%`;
+});
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     document.getElementById('whyModal').classList.add('hidden');
+    document.getElementById('settingsModal').classList.add('hidden');
+    document.getElementById('complianceModal').classList.add('hidden');
   }
 });

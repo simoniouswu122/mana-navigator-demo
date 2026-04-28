@@ -4,21 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simon · Mana Navigator · 我的健康团队</title>
-  <meta name="description" content="Simon 的个人 Mana 体验 — 今日计划 + 饮食 / 运动 / 睡眠数据 + 跟导航员对话调整今天">
+  <meta name="description" content="Simon 的个人 Mana 体验 — 实时 compliance · drift 检测 · 跟导航员对话调整今天">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%231a1a1a'/%3E%3Ctext x='50' y='68' font-size='52' font-weight='bold' text-anchor='middle' fill='white' font-family='-apple-system, sans-serif'%3EM%3C/text%3E%3C/svg%3E">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    body {
-      font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
+    body { font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif; }
     .fade-in { animation: fadeIn 0.4s ease-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .slide-up { animation: slideUp 0.3s ease-out; }
     @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .typing-dot {
-      animation: typing 1.4s infinite ease-in-out;
+    .pulse-ring {
+      animation: pulseRing 2s ease-in-out infinite;
     }
+    @keyframes pulseRing {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+    }
+    .typing-dot { animation: typing 1.4s infinite ease-in-out; }
     .typing-dot:nth-child(2) { animation-delay: 0.15s; }
     .typing-dot:nth-child(3) { animation-delay: 0.3s; }
     @keyframes typing {
@@ -28,115 +31,173 @@
     .scrollbar-thin::-webkit-scrollbar { width: 6px; }
     .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 3px; }
+    .ring-progress {
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
   </style>
 </head>
 <body class="bg-stone-50 text-stone-900">
 
 <!-- HEADER -->
 <header class="border-b border-stone-200 bg-white sticky top-0 z-30">
-  <div class="max-w-6xl mx-auto px-4 md:px-6">
-    <!-- Top row -->
-    <div class="py-3 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <a href="/" class="flex items-center gap-2.5">
-          <div class="w-8 h-8 bg-stone-900 rounded-full flex items-center justify-center">
-            <span class="text-white font-bold text-sm">M</span>
-          </div>
-          <div>
-            <div class="font-bold text-sm leading-tight">Mana</div>
-            <div class="text-[10px] text-stone-500 uppercase tracking-wider leading-tight">Navigator</div>
-          </div>
-        </a>
-        <div class="hidden md:block w-px h-7 bg-stone-200 mx-1"></div>
-        <div class="hidden md:block">
-          <div class="text-sm font-bold">Simon</div>
-          <div class="text-xs text-stone-500">增肌减脂 · Week 3/12</div>
+  <div class="max-w-6xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/" class="flex items-center gap-2.5">
+        <div class="w-8 h-8 bg-stone-900 rounded-full flex items-center justify-center">
+          <span class="text-white font-bold text-sm">M</span>
         </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <button onclick="toggleChat()" id="openChatBtn" class="flex items-center gap-2 px-3 py-1.5 bg-stone-900 text-white text-xs font-semibold rounded-lg hover:bg-stone-700 transition">
-          <span>💬</span><span class="hidden sm:inline">跟导航员对话</span>
-        </button>
-        <a href="/" class="text-xs text-stone-600 hover:text-stone-900 px-2">公开 demo →</a>
+        <div>
+          <div class="font-bold text-sm leading-tight">Mana</div>
+          <div class="text-[10px] text-stone-500 uppercase tracking-wider leading-tight">Navigator</div>
+        </div>
+      </a>
+      <div class="hidden md:block w-px h-7 bg-stone-200 mx-1"></div>
+      <div class="hidden md:block">
+        <div class="text-sm font-bold">Simon</div>
+        <div class="text-xs text-stone-500">增肌减脂 · Week 3/12</div>
       </div>
     </div>
-
-    <!-- Tabs -->
-    <nav class="flex gap-1 -mb-px overflow-x-auto scrollbar-thin">
-      <button onclick="switchTab('today')" data-tab="today" class="tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap">📅 今日</button>
-      <button onclick="switchTab('diet')" data-tab="diet" class="tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap">🥗 饮食</button>
-      <button onclick="switchTab('exercise')" data-tab="exercise" class="tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap">💪 运动</button>
-      <button onclick="switchTab('sleep')" data-tab="sleep" class="tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap">😴 睡眠</button>
-      <button onclick="switchTab('progress')" data-tab="progress" class="tab-btn px-4 py-2.5 text-sm font-semibold border-b-2 whitespace-nowrap">📈 进度</button>
-    </nav>
+    <div class="flex items-center gap-1">
+      <button onclick="openSettings()" class="p-2 hover:bg-stone-100 rounded-lg" title="设置">⚙️</button>
+      <button onclick="toggleChat()" class="flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 text-white text-xs font-semibold rounded-lg hover:bg-stone-700 transition">
+        <span>💬</span><span class="hidden sm:inline">导航员</span>
+      </button>
+    </div>
   </div>
 </header>
 
-<!-- MAIN CONTAINER -->
+<!-- TOP STATUS ROW (Compliance + Outcome + Streak) -->
+<section class="bg-white border-b border-stone-200">
+  <div class="max-w-6xl mx-auto px-4 md:px-6 py-4 grid grid-cols-3 gap-3 md:gap-4">
+    <!-- Compliance score (most prominent) -->
+    <button onclick="showComplianceBreakdown()" class="text-left bg-gradient-to-br from-emerald-50 to-stone-50 border border-emerald-200 rounded-xl p-3 md:p-4 hover:shadow-md transition group">
+      <div class="flex items-center justify-between mb-1">
+        <div class="text-[10px] md:text-xs font-semibold text-emerald-700 uppercase tracking-wider">Today Compliance</div>
+        <div class="text-[10px] text-stone-400 group-hover:text-stone-600">点开 →</div>
+      </div>
+      <div class="flex items-baseline gap-1">
+        <div id="complianceScore" class="text-2xl md:text-4xl font-extrabold">--</div>
+        <div class="text-base md:text-lg text-stone-500 font-semibold">%</div>
+      </div>
+      <div id="complianceMeta" class="text-[10px] md:text-xs text-stone-600 mt-0.5">--</div>
+    </button>
+
+    <!-- Outcome progress -->
+    <button onclick="switchTab('progress')" class="text-left bg-gradient-to-br from-stone-50 to-stone-100 border border-stone-200 rounded-xl p-3 md:p-4 hover:shadow-md transition group">
+      <div class="flex items-center justify-between mb-1">
+        <div class="text-[10px] md:text-xs font-semibold text-stone-700 uppercase tracking-wider">Outcome 进度</div>
+        <div class="text-[10px] text-stone-400 group-hover:text-stone-600">点开 →</div>
+      </div>
+      <div class="flex items-baseline gap-1">
+        <div id="outcomePct" class="text-2xl md:text-4xl font-extrabold">--</div>
+        <div class="text-base md:text-lg text-stone-500 font-semibold">%</div>
+      </div>
+      <div id="outcomeMeta" class="text-[10px] md:text-xs text-stone-600 mt-0.5">--</div>
+    </button>
+
+    <!-- Streak -->
+    <div class="bg-gradient-to-br from-amber-50 to-stone-50 border border-amber-200 rounded-xl p-3 md:p-4">
+      <div class="text-[10px] md:text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">本周 Streak</div>
+      <div class="flex items-baseline gap-1">
+        <div class="text-2xl md:text-4xl font-extrabold">4</div>
+        <div class="text-base md:text-lg text-stone-500 font-semibold">/ 7</div>
+      </div>
+      <div class="text-[10px] md:text-xs text-stone-600 mt-0.5">上次 break: 上周日</div>
+    </div>
+  </div>
+</section>
+
+<!-- TAB NAV (Today is primary, others are subordinate) -->
+<nav class="bg-white border-b border-stone-200 sticky top-[57px] z-20">
+  <div class="max-w-6xl mx-auto px-4 md:px-6 flex gap-1 overflow-x-auto scrollbar-thin">
+    <button onclick="switchTab('today')" data-tab="today" class="tab-btn px-4 py-2.5 text-sm font-bold border-b-2 whitespace-nowrap">📅 Today</button>
+    <button onclick="switchTab('diet')" data-tab="diet" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap">🥗 Diet</button>
+    <button onclick="switchTab('exercise')" data-tab="exercise" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap">💪 Exercise</button>
+    <button onclick="switchTab('sleep')" data-tab="sleep" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap">😴 Sleep</button>
+    <button onclick="switchTab('progress')" data-tab="progress" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap">📈 Progress</button>
+  </div>
+</nav>
+
+<!-- MAIN -->
 <main class="max-w-6xl mx-auto px-4 md:px-6 py-6">
 
   <!-- ============== TODAY TAB ============== -->
   <section id="tab-today" class="tab-pane">
-    <!-- Welcome -->
-    <div class="mb-6 flex items-center justify-between">
-      <div>
-        <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider">2026-04-28 · 周一</div>
-        <h1 class="text-2xl md:text-3xl font-extrabold mt-1">早上好，Simon。今天的计划已经为你排好。</h1>
+    <!-- Welcome row -->
+    <div class="mb-5">
+      <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider">2026-04-28 · 周一 · 现在 16:42</div>
+      <h1 class="text-2xl md:text-3xl font-extrabold mt-1">Hi Simon — 今天有 1 个偏离, 已自动调整</h1>
+    </div>
+
+    <!-- DRIFT ALERT (the differentiator) -->
+    <div id="driftAlert" class="bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-300 rounded-2xl p-4 md:p-5 mb-5 fade-in">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center text-xl pulse-ring">⚠️</div>
+        <div class="flex-1">
+          <div class="text-xs font-bold text-orange-700 uppercase tracking-wider">Drift 已检测 · 系统已自动调整</div>
+          <div class="text-sm md:text-base font-semibold mt-1">午餐多吃了 <span class="text-red-700">+250 大卡</span> · 饮食 Agent 已把晚餐削减 50g 米饭</div>
+          <div class="text-xs text-stone-600 mt-1">12:30 计划 600 卡 → 实际 13:10 吃了 850 卡 · 同事请客</div>
+        </div>
+        <button onclick="askNavigator('为什么调整晚餐而不是其他?')" class="text-xs font-semibold text-orange-700 hover:text-orange-900 underline whitespace-nowrap self-start">为什么这样调?</button>
       </div>
     </div>
 
-    <!-- Today's signal cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-      <div class="bg-white border border-stone-200 rounded-xl p-3">
-        <div class="text-xs text-stone-500">昨晚睡眠</div>
-        <div class="text-xl font-bold mt-1">7.2 <span class="text-sm text-stone-500">h</span></div>
-        <div class="text-xs text-orange-600 mt-0.5">略低于目标 8h</div>
-      </div>
-      <div class="bg-white border border-stone-200 rounded-xl p-3">
-        <div class="text-xs text-stone-500">HRV</div>
-        <div class="text-xl font-bold mt-1">58 <span class="text-sm text-stone-500">ms</span></div>
-        <div class="text-xs text-orange-600 mt-0.5">基线 62 · ↓ 6%</div>
-      </div>
-      <div class="bg-white border border-stone-200 rounded-xl p-3">
-        <div class="text-xs text-stone-500">本周训练</div>
-        <div class="text-xl font-bold mt-1">2/4</div>
-        <div class="text-xs text-stone-600 mt-0.5">今日 Pull day</div>
-      </div>
-      <div class="bg-white border border-stone-200 rounded-xl p-3">
-        <div class="text-xs text-stone-500">本周蛋白均值</div>
-        <div class="text-xl font-bold mt-1">198 <span class="text-sm text-stone-500">g</span></div>
-        <div class="text-xs text-emerald-600 mt-0.5">基本达标 (目标 200g)</div>
-      </div>
-    </div>
-
-    <!-- Tradeoff card from Navigator -->
-    <div class="bg-stone-900 text-white rounded-2xl p-5 mb-6">
+    <!-- Navigator tradeoff card -->
+    <div class="bg-stone-900 text-white rounded-2xl p-5 mb-5">
       <div class="flex items-start gap-3">
         <div class="text-2xl">🧭</div>
         <div class="flex-1">
-          <div class="text-xs font-semibold uppercase tracking-wider opacity-60 mb-1">导航员说</div>
+          <div class="text-xs font-semibold uppercase tracking-wider opacity-60 mb-1">导航员的实时取舍</div>
           <div id="todayTradeoff" class="text-base md:text-lg font-medium leading-relaxed"></div>
         </div>
       </div>
     </div>
 
-    <!-- Schedule timeline -->
+    <!-- Schedule timeline with state markers -->
     <div class="bg-white border border-stone-200 rounded-2xl overflow-hidden">
       <div class="p-4 border-b border-stone-200 flex items-center justify-between">
         <div>
           <div class="font-bold text-base">今日时间线</div>
-          <div class="text-xs text-stone-500 mt-0.5">点任一项看「为什么这样安排」 / 点 💬 让导航员调整</div>
+          <div class="text-xs text-stone-500 mt-0.5">✅ 已完成 · ⚠️ Drift · ⏳ 即将 · 🔄 已自动调整</div>
         </div>
       </div>
       <div id="todayTimeline" class="divide-y divide-stone-100"></div>
     </div>
 
-    <!-- Quick actions -->
+    <!-- Quick chat actions -->
     <div class="mt-4 flex flex-wrap gap-2">
-      <button onclick="askNavigator('我今晚想出去吃饭，能调整一下今天剩下的计划吗?')" class="text-xs px-3 py-1.5 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition">🍽️ 今晚想出去吃</button>
-      <button onclick="askNavigator('今天没时间训练，能不能改成明天?')" class="text-xs px-3 py-1.5 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition">🏋️ 没时间训练</button>
-      <button onclick="askNavigator('我感觉很累，今天能不能降低强度?')" class="text-xs px-3 py-1.5 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition">😮‍💨 我很累</button>
+      <button onclick="askNavigator('我今晚想出去吃饭, 调整今天剩下的')" class="text-xs px-3 py-1.5 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition">🍽️ 今晚出去吃</button>
+      <button onclick="askNavigator('今天没时间训练, 改到明天')" class="text-xs px-3 py-1.5 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition">🏋️ 没时间训练</button>
+      <button onclick="askNavigator('我感觉很累, 降低强度')" class="text-xs px-3 py-1.5 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition">😮‍💨 我很累</button>
       <button onclick="askNavigator('为什么今天的计划这样安排?')" class="text-xs px-3 py-1.5 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition">❓ 解释一下</button>
+    </div>
+
+    <!-- DRILLDOWN ROW: Today screen → details for each agent -->
+    <div class="mt-8">
+      <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">查看深入数据</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button onclick="switchTab('diet')" class="bg-white border border-stone-200 rounded-xl p-3 text-left hover:shadow-md hover:border-emerald-300 transition group">
+          <div class="text-lg mb-1">🥗</div>
+          <div class="text-xs font-bold">Diet</div>
+          <div class="text-xs text-stone-500 mt-1" id="dietMini">--</div>
+        </button>
+        <button onclick="switchTab('exercise')" class="bg-white border border-stone-200 rounded-xl p-3 text-left hover:shadow-md hover:border-orange-300 transition group">
+          <div class="text-lg mb-1">💪</div>
+          <div class="text-xs font-bold">Exercise</div>
+          <div class="text-xs text-stone-500 mt-1" id="exerciseMini">--</div>
+        </button>
+        <button onclick="switchTab('sleep')" class="bg-white border border-stone-200 rounded-xl p-3 text-left hover:shadow-md hover:border-indigo-300 transition group">
+          <div class="text-lg mb-1">😴</div>
+          <div class="text-xs font-bold">Sleep</div>
+          <div class="text-xs text-stone-500 mt-1" id="sleepMini">--</div>
+        </button>
+        <button onclick="switchTab('progress')" class="bg-white border border-stone-200 rounded-xl p-3 text-left hover:shadow-md hover:border-stone-400 transition group">
+          <div class="text-lg mb-1">📈</div>
+          <div class="text-xs font-bold">Progress</div>
+          <div class="text-xs text-stone-500 mt-1" id="progressMini">--</div>
+        </button>
+      </div>
     </div>
   </section>
 
@@ -144,15 +205,11 @@
   <section id="tab-diet" class="tab-pane hidden">
     <h1 class="text-2xl md:text-3xl font-extrabold mb-1">饮食 Agent</h1>
     <p class="text-stone-600 mb-6">今日宏量进度 · 7 天趋势 · 最近餐食</p>
-
-    <!-- Today's macro progress -->
     <div class="grid md:grid-cols-2 gap-4 mb-6">
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
-        <div class="text-sm font-bold mb-3">今日宏量进度（目前 ~80% 完成）</div>
+        <div class="text-sm font-bold mb-3">今日宏量进度</div>
         <div id="macroProgress" class="space-y-3"></div>
-        <div class="mt-4 pt-4 border-t border-stone-100 text-xs text-stone-500">
-          📌 蛋白进度领先 — 训练日的 50g 晚餐还没吃。
-        </div>
+        <div class="mt-4 pt-4 border-t border-stone-100 text-xs text-stone-500">📌 蛋白进度领先 — 训练日的 50g 晚餐还没吃。</div>
       </div>
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
         <div class="text-sm font-bold mb-3">本周热量 + 蛋白趋势</div>
@@ -160,12 +217,9 @@
         <div class="mt-3 flex items-center gap-3 text-xs">
           <span class="flex items-center gap-1"><span class="w-3 h-3 bg-stone-900 rounded-sm"></span>热量</span>
           <span class="flex items-center gap-1"><span class="w-3 h-3 bg-red-600 rounded-sm"></span>蛋白</span>
-          <span class="flex items-center gap-1"><span class="w-3 h-2 border-t-2 border-dashed border-stone-400"></span>目标</span>
         </div>
       </div>
     </div>
-
-    <!-- Recent meals -->
     <div class="bg-white border border-stone-200 rounded-2xl overflow-hidden">
       <div class="p-4 border-b border-stone-200">
         <div class="font-bold">最近餐食</div>
@@ -179,8 +233,6 @@
   <section id="tab-exercise" class="tab-pane hidden">
     <h1 class="text-2xl md:text-3xl font-extrabold mb-1">运动 Agent</h1>
     <p class="text-stone-600 mb-6">今日训练 · 周训练量 · HRV 趋势 · 力量进展</p>
-
-    <!-- Today's training -->
     <div class="bg-white border border-stone-200 rounded-2xl p-5 mb-4">
       <div class="flex items-center justify-between mb-3">
         <div>
@@ -195,8 +247,6 @@
       </div>
       <div id="todayLifts" class="divide-y divide-stone-100 mt-4 -mx-2"></div>
     </div>
-
-    <!-- Week volume + HRV -->
     <div class="grid md:grid-cols-2 gap-4 mb-4">
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
         <div class="text-sm font-bold mb-3">本周训练量 (kg-reps)</div>
@@ -205,13 +255,9 @@
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
         <div class="text-sm font-bold mb-3">HRV 趋势 (14 天)</div>
         <canvas id="hrvChart" height="200"></canvas>
-        <div class="mt-3 text-xs text-stone-500">
-          基线 <span class="font-semibold">62</span> · 当前 <span class="font-semibold text-orange-600">58</span> — 略低，但仍可训练
-        </div>
+        <div class="mt-3 text-xs text-stone-500">基线 <span class="font-semibold">62</span> · 当前 <span class="font-semibold text-orange-600">58</span> — 略低，但仍可训练</div>
       </div>
     </div>
-
-    <!-- Strength progression -->
     <div class="bg-white border border-stone-200 rounded-2xl p-5">
       <div class="flex items-center justify-between mb-3">
         <div class="text-sm font-bold">8 周力量进展（核心 3 lifts）</div>
@@ -225,8 +271,6 @@
   <section id="tab-sleep" class="tab-pane hidden">
     <h1 class="text-2xl md:text-3xl font-extrabold mb-1">睡眠 Agent</h1>
     <p class="text-stone-600 mb-6">昨晚数据 · 7 天趋势 · 质量分析</p>
-
-    <!-- Last night -->
     <div class="grid md:grid-cols-3 gap-4 mb-6">
       <div class="md:col-span-2 bg-white border border-stone-200 rounded-2xl p-5">
         <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-1">昨晚</div>
@@ -248,13 +292,9 @@
         <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">质量评分</div>
         <div class="text-5xl font-extrabold">78</div>
         <div class="text-xs text-stone-500 mb-4">/ 100</div>
-        <div class="text-xs leading-relaxed text-stone-600">
-          深睡时长合格但 HRV 略低 — 睡眠 Agent 已通知运动 Agent，今天训练强度保持但**不建议加大重量**。
-        </div>
+        <div class="text-xs leading-relaxed text-stone-600">深睡时长合格但 HRV 略低 — 睡眠 Agent 已通知运动 Agent，今天训练强度保持但**不建议加大重量**。</div>
       </div>
     </div>
-
-    <!-- 7-day chart -->
     <div class="bg-white border border-stone-200 rounded-2xl p-5">
       <div class="flex items-center justify-between mb-3">
         <div class="text-sm font-bold">7 天睡眠时长 + 质量</div>
@@ -268,90 +308,62 @@
   <section id="tab-progress" class="tab-pane hidden">
     <h1 class="text-2xl md:text-3xl font-extrabold mb-1">我的进度</h1>
     <p class="text-stone-600 mb-6">起点 → 当前 → 目标 · 12 周 recomp 之旅</p>
-
-    <!-- Body composition cards -->
     <div class="grid md:grid-cols-3 gap-4 mb-6">
-      <!-- Weight -->
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
         <div class="flex items-center justify-between mb-3">
           <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider">体重</div>
           <div class="text-xs text-emerald-600 font-semibold">↓ 1.8kg</div>
         </div>
-        <div class="flex items-baseline gap-2">
-          <div class="text-4xl font-extrabold">73.2</div>
-          <div class="text-stone-500">kg</div>
-        </div>
+        <div class="flex items-baseline gap-2"><div class="text-4xl font-extrabold">73.2</div><div class="text-stone-500">kg</div></div>
         <div class="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div><div class="text-stone-500">起点</div><div class="font-bold mt-0.5">75.0</div></div>
           <div class="bg-stone-50 rounded p-1"><div class="text-stone-700">现在</div><div class="font-bold mt-0.5">73.2</div></div>
           <div><div class="text-stone-500">目标</div><div class="font-bold mt-0.5">71.5</div></div>
         </div>
-        <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden">
-          <div class="h-full bg-emerald-500" style="width: 51%"></div>
-        </div>
+        <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden"><div class="h-full bg-emerald-500" style="width: 51%"></div></div>
         <div class="mt-1 text-xs text-stone-500">完成 51%</div>
       </div>
-
-      <!-- Body fat -->
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
         <div class="flex items-center justify-between mb-3">
           <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider">体脂率</div>
           <div class="text-xs text-emerald-600 font-semibold">↓ 1.7%</div>
         </div>
-        <div class="flex items-baseline gap-2">
-          <div class="text-4xl font-extrabold">17.8</div>
-          <div class="text-stone-500">%</div>
-        </div>
+        <div class="flex items-baseline gap-2"><div class="text-4xl font-extrabold">17.8</div><div class="text-stone-500">%</div></div>
         <div class="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div><div class="text-stone-500">起点</div><div class="font-bold mt-0.5">19.5</div></div>
           <div class="bg-stone-50 rounded p-1"><div class="text-stone-700">现在</div><div class="font-bold mt-0.5">17.8</div></div>
           <div><div class="text-stone-500">目标</div><div class="font-bold mt-0.5">14.0</div></div>
         </div>
-        <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden">
-          <div class="h-full bg-emerald-500" style="width: 31%"></div>
-        </div>
+        <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden"><div class="h-full bg-emerald-500" style="width: 31%"></div></div>
         <div class="mt-1 text-xs text-stone-500">完成 31%</div>
       </div>
-
-      <!-- Lean mass -->
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
         <div class="flex items-center justify-between mb-3">
           <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider">瘦体重</div>
           <div class="text-xs text-stone-500 font-semibold">→ 持平</div>
         </div>
-        <div class="flex items-baseline gap-2">
-          <div class="text-4xl font-extrabold">60.2</div>
-          <div class="text-stone-500">kg</div>
-        </div>
+        <div class="flex items-baseline gap-2"><div class="text-4xl font-extrabold">60.2</div><div class="text-stone-500">kg</div></div>
         <div class="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div><div class="text-stone-500">起点</div><div class="font-bold mt-0.5">60.4</div></div>
           <div class="bg-stone-50 rounded p-1"><div class="text-stone-700">现在</div><div class="font-bold mt-0.5">60.2</div></div>
           <div><div class="text-stone-500">目标</div><div class="font-bold mt-0.5">61.5</div></div>
         </div>
-        <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden">
-          <div class="h-full bg-amber-500" style="width: 0%"></div>
-        </div>
+        <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden"><div class="h-full bg-amber-500" style="width: 0%"></div></div>
         <div class="mt-1 text-xs text-amber-700">⚠ 减脂期保住肌肉是首要任务，蛋白要跟上</div>
       </div>
     </div>
-
-    <!-- Trajectory chart -->
     <div class="bg-white border border-stone-200 rounded-2xl p-5">
       <div class="flex items-center justify-between mb-3">
         <div class="text-sm font-bold">12 周 recomp 轨迹（已走 3 周）</div>
-        <div class="text-xs text-stone-500">实线 = 实际数据 · 虚线 = AI 团队预测路径</div>
+        <div class="text-xs text-stone-500">实线 = 实际 · 虚线 = AI 预测</div>
       </div>
       <canvas id="progressChart" height="220"></canvas>
     </div>
-
-    <!-- Before / now / target snapshot -->
     <div class="mt-6 bg-stone-900 text-white rounded-2xl p-6">
       <div class="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">导航员的总结</div>
       <p class="text-base md:text-lg leading-relaxed">
-        过去 3 周你掉了 <span class="font-bold text-emerald-400">1.8kg</span>，体脂从 19.5% 到 17.8%，
-        瘦体重几乎持平 — 这意味着你掉的几乎全是脂肪。<br><br>
-        接下来 9 周的关键：<span class="font-bold text-red-400">蛋白每天 200g 不可妥协</span>，
-        训练继续渐进超负荷，HRV 低于基线 8% 的时候不冒险加大重量。
+        过去 3 周你掉了 <span class="font-bold text-emerald-400">1.8kg</span>，体脂从 19.5% 到 17.8%，瘦体重几乎持平 — 这意味着你掉的几乎全是脂肪。<br><br>
+        接下来 9 周的关键：<span class="font-bold text-red-400">蛋白每天 200g 不可妥协</span>，训练继续渐进超负荷，HRV 低于基线 8% 的时候不冒险加大重量。
       </p>
     </div>
   </section>
@@ -359,8 +371,7 @@
 </main>
 
 <!-- ============== CHAT PANEL ============== -->
-<div id="chatPanel" class="hidden fixed inset-0 md:inset-auto md:right-6 md:bottom-6 md:w-[400px] md:h-[600px] bg-white md:rounded-2xl md:shadow-2xl border border-stone-200 z-40 flex flex-col">
-  <!-- Chat header -->
+<div id="chatPanel" class="hidden fixed inset-0 md:inset-auto md:right-6 md:bottom-6 md:w-[420px] md:h-[640px] bg-white md:rounded-2xl md:shadow-2xl border border-stone-200 z-40 flex flex-col">
   <div class="p-4 border-b border-stone-200 flex items-center justify-between bg-stone-900 text-white md:rounded-t-2xl">
     <div class="flex items-center gap-3">
       <div class="w-9 h-9 bg-red-600 rounded-full flex items-center justify-center text-lg">🧭</div>
@@ -371,29 +382,23 @@
     </div>
     <button onclick="toggleChat()" class="text-white/60 hover:text-white text-xl">✕</button>
   </div>
-
-  <!-- Messages -->
   <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
     <div class="bg-stone-50 rounded-xl p-3 text-sm fade-in">
       <div class="font-semibold text-xs text-stone-500 mb-1">导航员</div>
-      <p class="leading-relaxed">嗨 Simon。今天 HRV 略低，我已经把训练强度保持但不建议加大重量。蛋白还差 16g (你今天还有晚餐 + 睡前)。<br><br>有什么需要调整的吗？</p>
+      <p class="leading-relaxed">嗨 Simon。今天午餐 +250 卡 — 我已经把晚餐削减 50g 米饭。HRV 略低，训练强度保持但不加大重量。<br><br>有什么需要进一步调整的吗？</p>
     </div>
   </div>
-
-  <!-- Quick suggestions -->
   <div class="px-4 pb-2 flex flex-wrap gap-1.5">
-    <button onclick="sendQuickMsg('今晚想出去吃饭')" class="text-xs px-2.5 py-1 bg-stone-100 hover:bg-stone-200 rounded-full">🍽️ 今晚想出去吃</button>
-    <button onclick="sendQuickMsg('我感觉很累')" class="text-xs px-2.5 py-1 bg-stone-100 hover:bg-stone-200 rounded-full">😮‍💨 我很累</button>
-    <button onclick="sendQuickMsg('为什么今天选 pull day')" class="text-xs px-2.5 py-1 bg-stone-100 hover:bg-stone-200 rounded-full">❓ 为什么 pull</button>
+    <button onclick="sendQuickMsg('今晚要出去吃饭')" class="text-xs px-2.5 py-1 bg-stone-100 hover:bg-stone-200 rounded-full">🍽️ 出去吃</button>
+    <button onclick="sendQuickMsg('我感觉很累')" class="text-xs px-2.5 py-1 bg-stone-100 hover:bg-stone-200 rounded-full">😮‍💨 很累</button>
+    <button onclick="sendQuickMsg('为什么调整晚餐')" class="text-xs px-2.5 py-1 bg-stone-100 hover:bg-stone-200 rounded-full">❓ 为什么</button>
   </div>
-
-  <!-- Input -->
   <div class="p-4 border-t border-stone-200">
     <form onsubmit="event.preventDefault(); sendChatMessage();" class="flex gap-2">
       <input id="chatInput" type="text" placeholder="跟导航员说..." class="flex-1 px-3 py-2 text-sm border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 focus:border-transparent">
       <button type="submit" class="px-4 py-2 bg-stone-900 text-white text-sm font-semibold rounded-lg hover:bg-stone-700 transition">送</button>
     </form>
-    <div class="text-[10px] text-stone-400 mt-2 text-center">导航员会把你的请求分发给 3 个 Agent 后给你统一答复</div>
+    <div class="text-[10px] text-stone-400 mt-2 text-center">建议改 schedule 时, 你会先看 preview 再确认</div>
   </div>
 </div>
 
@@ -410,6 +415,49 @@
     <div id="whyContent" class="text-stone-700 leading-relaxed"></div>
     <div class="mt-5 pt-4 border-t border-stone-200 text-xs text-stone-500">
       <strong>来自:</strong> <span id="whyAgent"></span>
+    </div>
+  </div>
+</div>
+
+<!-- COMPLIANCE BREAKDOWN MODAL -->
+<div id="complianceModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeCompliance()">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6 fade-in">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-xl font-bold">今日 Compliance 拆解</h3>
+      <button onclick="closeCompliance()" class="text-stone-400 hover:text-stone-700">✕</button>
+    </div>
+    <div id="complianceBreakdown" class="space-y-4"></div>
+    <div class="mt-5 pt-4 border-t border-stone-200 text-xs text-stone-500">简单加权: 蛋白 33% + 训练 33% + 睡眠 33%</div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settingsModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeSettings()">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6 fade-in">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-xl font-bold">设置</h3>
+      <button onclick="closeSettings()" class="text-stone-400 hover:text-stone-700">✕</button>
+    </div>
+    <div class="space-y-5">
+      <div>
+        <label class="block text-sm font-semibold mb-1">Drift on-track 阈值</label>
+        <p class="text-xs text-stone-500 mb-2">实际值在计划值 ± 这个百分比内 = "如计划"</p>
+        <div class="flex items-center gap-3">
+          <input id="onTrackSlider" type="range" min="5" max="25" step="1" class="flex-1">
+          <div id="onTrackValue" class="w-16 text-right font-bold">±10%</div>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">Drift alert 阈值</label>
+        <p class="text-xs text-stone-500 mb-2">超过这个百分比 = 触发自动调整</p>
+        <div class="flex items-center gap-3">
+          <input id="alertSlider" type="range" min="10" max="50" step="1" class="flex-1">
+          <div id="alertValue" class="w-16 text-right font-bold">±20%</div>
+        </div>
+      </div>
+      <div class="pt-4 border-t border-stone-200">
+        <button onclick="saveSettings()" class="w-full px-4 py-2 bg-stone-900 text-white text-sm font-semibold rounded-lg hover:bg-stone-700">保存</button>
+      </div>
     </div>
   </div>
 </div>
