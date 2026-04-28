@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mana Health Navigator · 一组 AI 替你排今天</title>
+  <meta name="description" content="不是聊天 AI——是 3 个 AI 专家 + 1 个导航员，根据你的目标排你今天的吃练睡。每条建议都告诉你为什么。Build in Public · 实时 demo。">
+
+  <!-- Open Graph (Facebook, LinkedIn, 微信) -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Mana Health Navigator · 一组 AI 替你排今天">
+  <meta property="og:description" content="3 个 AI 专家 + 1 个导航员，根据你的目标排你今天的吃练睡。每条建议都告诉你为什么。">
+  <meta property="og:image" content="og-preview.png">
+  <meta property="og:url" content="">
+
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Mana Health Navigator · 一组 AI 替你排今天">
+  <meta name="twitter:description" content="3 个 AI 专家 + 1 个导航员替你排你这一周的目标对应的今天 — 吃练睡 + 为什么。">
+  <meta name="twitter:image" content="og-preview.png">
+
+  <!-- Favicon: inline SVG, no extra file needed -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%231a1a1a'/%3E%3Ctext x='50' y='68' font-size='52' font-weight='bold' text-anchor='middle' fill='white' font-family='-apple-system, sans-serif'%3EM%3C/text%3E%3C/svg%3E">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .agent-pulse {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .slide-in {
+      animation: slideIn 0.4s ease-out;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .typing::after {
+      content: '▋';
+      animation: blink 1s infinite;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-900">
+
+<!-- HEADER -->
+<header class="border-b border-stone-200 bg-white sticky top-0 z-10">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-stone-900 rounded-full flex items-center justify-center">
+        <span class="text-white font-bold text-lg">M</span>
+      </div>
+      <div>
+        <div class="font-bold text-lg">Mana</div>
+        <div class="text-xs text-stone-500 -mt-0.5">Health Navigator · Demo</div>
+      </div>
+    </div>
+    <a href="#how-it-works" class="text-sm text-stone-600 hover:text-stone-900">这是什么 →</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="max-w-4xl mx-auto px-6 pt-16 pb-12 text-center">
+  <div class="inline-block px-3 py-1 bg-red-50 text-red-700 text-xs font-semibold rounded-full mb-4">
+    Build in Public · 实时 demo
+  </div>
+  <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
+    告诉我你的目标——<br>
+    <span class="text-red-600">3 个 AI 专家 + 1 个导航员</span><br>
+    替你排好今天的一天
+  </h1>
+  <p class="mt-6 text-lg text-stone-600 max-w-2xl mx-auto">
+    不是一个聊天 AI 给你模糊建议。是一组 24 小时盯着你的 Agent — 饮食 / 运动 / 睡眠 + 导航员，根据你这一周的目标输出**具体的吃练睡时间表**。每条都告诉你**为什么**。
+  </p>
+</section>
+
+<!-- PROFILE PICKER -->
+<section class="max-w-6xl mx-auto px-6 pb-12">
+  <div class="text-center mb-8">
+    <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">点一个画像看 AI 团队怎么排</div>
+    <h2 class="text-2xl font-bold">选一个目标</h2>
+  </div>
+
+  <div class="grid md:grid-cols-3 gap-5">
+    <!-- Profile 1: Office worker weight loss -->
+    <button onclick="selectProfile('weight-loss')" class="profile-card group bg-white border-2 border-stone-200 hover:border-teal-500 rounded-2xl p-6 text-left transition-all hover:shadow-lg" data-profile="weight-loss">
+      <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center mb-4 group-hover:bg-teal-100 transition">
+        <span class="text-2xl">💼</span>
+      </div>
+      <div class="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-1">画像 A</div>
+      <h3 class="text-xl font-bold mb-2">想瘦 5 斤的上班族</h3>
+      <p class="text-sm text-stone-600 leading-relaxed">30+ 岁 · 久坐 8 小时 · 有限训练时间 · 想稳健减脂不反弹</p>
+      <div class="mt-4 flex items-center gap-2 text-xs text-stone-500">
+        <span>~1500 大卡</span><span>·</span><span>100g+ 蛋白</span><span>·</span><span>30 min 训练</span>
+      </div>
+    </button>
+
+    <!-- Profile 2: Marathon prep -->
+    <button onclick="selectProfile('marathon')" class="profile-card group bg-white border-2 border-stone-200 hover:border-orange-500 rounded-2xl p-6 text-left transition-all hover:shadow-lg" data-profile="marathon">
+      <div class="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-4 group-hover:bg-orange-100 transition">
+        <span class="text-2xl">🏃</span>
+      </div>
+      <div class="text-xs font-semibold text-orange-600 uppercase tracking-wider mb-1">画像 B</div>
+      <h3 class="text-xl font-bold mb-2">马拉松前 2 周 peak 训练</h3>
+      <p class="text-sm text-stone-600 leading-relaxed">业余跑者 · peak 周 · 想跑出 PB · 高里程 + 高恢复需求</p>
+      <div class="mt-4 flex items-center gap-2 text-xs text-stone-500">
+        <span>~3000 大卡</span><span>·</span><span>400g+ 碳水</span><span>·</span><span>9h 睡眠</span>
+      </div>
+    </button>
+
+    <!-- Profile 3: Recomp -->
+    <button onclick="selectProfile('recomp')" class="profile-card group bg-white border-2 border-stone-200 hover:border-stone-900 rounded-2xl p-6 text-left transition-all hover:shadow-lg" data-profile="recomp">
+      <div class="w-12 h-12 bg-stone-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-stone-200 transition">
+        <span class="text-2xl">💪</span>
+      </div>
+      <div class="text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">画像 C</div>
+      <h3 class="text-xl font-bold mb-2">30 岁 · 增肌 + 减脂</h3>
+      <p class="text-sm text-stone-600 leading-relaxed">recomp · 有训练基础 · 想同时长肌肉 + 掉体脂 (最难的目标)</p>
+      <div class="mt-4 flex items-center gap-2 text-xs text-stone-500">
+        <span>~2300 大卡</span><span>·</span><span class="font-bold text-red-600">200g 蛋白</span><span>·</span><span>力量 60 min</span>
+      </div>
+    </button>
+  </div>
+
+  <!-- Custom profile form -->
+  <div class="mt-8 text-center">
+    <button onclick="toggleCustomForm()" id="customToggle" class="text-sm text-stone-600 hover:text-stone-900 underline">
+      或者输入你自己的画像 →
+    </button>
+  </div>
+
+  <div id="customForm" class="hidden mt-6 max-w-3xl mx-auto bg-white border border-stone-200 rounded-2xl p-6">
+    <h3 class="font-bold text-lg mb-4">告诉我你的画像</h3>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">性别</label>
+        <select id="custom-gender" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm">
+          <option>男</option>
+          <option>女</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">年龄</label>
+        <input id="custom-age" type="number" value="30" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">身高 (cm)</label>
+        <input id="custom-height" type="number" value="170" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-stone-600 mb-1">体重 (kg)</label>
+        <input id="custom-weight" type="number" value="70" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-semibold text-stone-600 mb-1">目标</label>
+        <select id="custom-goal" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm">
+          <option value="lose-weight">减重 · 想瘦 5 斤</option>
+          <option value="marathon">马拉松前 2 周 peak 备赛</option>
+          <option value="recomp">同时增肌 + 减脂</option>
+          <option value="maintain">维持 · 保持现状但要健康</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-semibold text-stone-600 mb-1">活动水平</label>
+        <select id="custom-activity" class="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm">
+          <option value="sedentary">久坐 (办公室 8h)</option>
+          <option value="moderate">中等活动 (每周训练 3-4 次)</option>
+          <option value="high">高强度 (每周训练 5+ 次)</option>
+        </select>
+      </div>
+    </div>
+    <div class="mt-5 flex items-center justify-between">
+      <p class="text-xs text-stone-500">⚠ 自定义画像目前用最近的预设输出 — 真实 AI 调用待 Claude API key 配置</p>
+      <button onclick="generateCustom()" class="px-4 py-2 bg-stone-900 text-white text-sm font-semibold rounded-lg hover:bg-stone-700">
+        让 AI 团队排
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- AGENT THINKING + PLAN OUTPUT -->
+<section id="output" class="hidden max-w-6xl mx-auto px-6 pb-16">
+  <!-- Agent thinking animation -->
+  <div id="agentStream" class="mb-10">
+    <div class="text-center mb-6">
+      <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1">AI 团队工作中</div>
+      <h3 class="text-2xl font-bold" id="streamTitle">3 个专家 + 导航员正在为你排今天</h3>
+    </div>
+    <div class="grid md:grid-cols-4 gap-4">
+      <div id="agent-diet" class="agent-card bg-white border border-stone-200 rounded-xl p-4 opacity-30 transition-opacity">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">🥗</div>
+          <div class="font-bold text-sm">饮食 Agent</div>
+        </div>
+        <div class="text-xs text-stone-500" id="agent-diet-status">等待...</div>
+      </div>
+      <div id="agent-exercise" class="agent-card bg-white border border-stone-200 rounded-xl p-4 opacity-30 transition-opacity">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">🏋️</div>
+          <div class="font-bold text-sm">运动 Agent</div>
+        </div>
+        <div class="text-xs text-stone-500" id="agent-exercise-status">等待...</div>
+      </div>
+      <div id="agent-sleep" class="agent-card bg-white border border-stone-200 rounded-xl p-4 opacity-30 transition-opacity">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">😴</div>
+          <div class="font-bold text-sm">睡眠 Agent</div>
+        </div>
+        <div class="text-xs text-stone-500" id="agent-sleep-status">等待...</div>
+      </div>
+      <div id="agent-navigator" class="agent-card bg-white border-2 border-stone-300 rounded-xl p-4 opacity-30 transition-opacity">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">🧭</div>
+          <div class="font-bold text-sm">导航员</div>
+        </div>
+        <div class="text-xs text-stone-500" id="agent-navigator-status">等待 3 个专家完成...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- The plan output -->
+  <div id="planOutput" class="hidden">
+    <div id="planHeader" class="text-center mb-8 fade-in">
+      <div id="planLabel" class="inline-block px-3 py-1 text-xs font-semibold rounded-full mb-3"></div>
+      <h2 id="planTitle" class="text-3xl font-extrabold mb-3"></h2>
+      <div id="planStats" class="flex items-center justify-center gap-6 text-sm text-stone-600"></div>
+    </div>
+
+    <!-- Tradeoff line - the navigator's signature -->
+    <div id="tradeoffBox" class="bg-stone-900 text-white rounded-2xl p-5 mb-8 fade-in">
+      <div class="text-xs font-semibold uppercase tracking-wider opacity-60 mb-2">📌 导航员的取舍</div>
+      <div id="tradeoffText" class="text-lg font-medium"></div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="bg-white border border-stone-200 rounded-2xl overflow-hidden fade-in">
+      <div class="p-4 border-b border-stone-200 flex items-center justify-between">
+        <div class="font-bold">今日时间线</div>
+        <div class="text-xs text-stone-500">点任一项看「为什么这样安排」</div>
+      </div>
+      <div id="timeline" class="divide-y divide-stone-100"></div>
+    </div>
+
+    <!-- 3 principles -->
+    <div class="mt-6 bg-white border border-stone-200 rounded-2xl p-6 fade-in">
+      <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">这一天背后的 3 个原则</div>
+      <ol id="principles" class="space-y-3"></ol>
+    </div>
+
+    <!-- CTA -->
+    <div class="mt-8 text-center">
+      <p class="text-stone-600 mb-4">想要 AI 团队按你**这一周的目标**给你排你今天的一天？</p>
+      <button onclick="resetDemo()" class="text-sm text-stone-600 hover:text-stone-900 underline">← 选另一个画像</button>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works" class="bg-stone-900 text-white py-16 mt-12">
+  <div class="max-w-4xl mx-auto px-6">
+    <div class="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">这是什么</div>
+    <h2 class="text-3xl font-bold mb-6">不是一个 AI——是一组 Agent</h2>
+    <div class="grid md:grid-cols-2 gap-8 text-stone-300">
+      <div>
+        <h3 class="font-bold text-white mb-2">🥗 饮食 Agent</h3>
+        <p class="text-sm leading-relaxed">只盯一件事——你今天吃什么。它知道你的目标宏量、你常吃的菜、你训练前后该补什么。它不评论你的训练，也不给睡眠建议。</p>
+      </div>
+      <div>
+        <h3 class="font-bold text-white mb-2">🏋️ 运动 Agent</h3>
+        <p class="text-sm leading-relaxed">只盯一件事——你今天该练什么。它知道你昨晚 HRV 有没有低、你这周训练量、你的目标周（减脂还是 peak）。</p>
+      </div>
+      <div>
+        <h3 class="font-bold text-white mb-2">😴 睡眠 Agent</h3>
+        <p class="text-sm leading-relaxed">只盯一件事——你的恢复。它发现 HRV 异常会主动给运动 Agent 发消息：「今天降强度。」</p>
+      </div>
+      <div>
+        <h3 class="font-bold text-white mb-2">🧭 导航员</h3>
+        <p class="text-sm leading-relaxed">3 个专家意见相反时，它决定**谁说了算**——根据你这一周的目标。然后写出一份计划 + **一句取舍**。</p>
+      </div>
+    </div>
+    <div class="mt-8 pt-8 border-t border-stone-800 text-sm text-stone-400 leading-relaxed">
+      <p>这是 Mana 的 demo——24 小时盯着你的 AI 团队，根据你的画像和目标排你今天的一天。每条建议都告诉你**为什么**，因为减肥、备赛、增肌——每一条决定都需要上下文。</p>
+      <p class="mt-3 italic">"这不是更聪明的 App。是为一个人做的 App——而那个人就是你。"</p>
+    </div>
+  </div>
+</section>
+
+<footer class="text-center py-8 text-xs text-stone-500">
+  <p>Mana Navigator Demo · Build in Public · <a href="#" class="underline hover:text-stone-700">关注更新</a></p>
+</footer>
+
+<!-- "Why this?" tooltip / modal -->
+<div id="whyModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="closeWhy(event)">
+  <div class="bg-white rounded-2xl max-w-lg w-full p-6 fade-in" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-1">为什么这样安排</div>
+        <h3 id="whyTitle" class="text-xl font-bold"></h3>
+      </div>
+      <button onclick="closeWhy()" class="text-stone-400 hover:text-stone-700">✕</button>
+    </div>
+    <div id="whyContent" class="text-stone-700 leading-relaxed"></div>
+    <div class="mt-5 pt-4 border-t border-stone-200 text-xs text-stone-500">
+      <strong>来自:</strong> <span id="whyAgent"></span>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>

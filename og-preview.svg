@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" font-family="-apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', sans-serif">
+  <!-- Dark background -->
+  <rect width="1200" height="1200" fill="#1a1a1a"/>
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.04" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="200" x2="1200" y2="200"/>
+    <line x1="0" y1="400" x2="1200" y2="400"/>
+    <line x1="0" y1="600" x2="1200" y2="600"/>
+    <line x1="0" y1="800" x2="1200" y2="800"/>
+    <line x1="0" y1="1000" x2="1200" y2="1000"/>
+    <line x1="200" y1="0" x2="200" y2="1200"/>
+    <line x1="400" y1="0" x2="400" y2="1200"/>
+    <line x1="600" y1="0" x2="600" y2="1200"/>
+    <line x1="800" y1="0" x2="800" y2="1200"/>
+    <line x1="1000" y1="0" x2="1000" y2="1200"/>
+  </g>
+
+  <!-- Top tag -->
+  <rect x="80" y="100" width="260" height="48" rx="24" fill="#d72638"/>
+  <text x="210" y="132" text-anchor="middle" font-size="20" font-weight="700" fill="#ffffff">Build in Public · Demo</text>
+
+  <!-- Brand mark -->
+  <circle cx="120" cy="225" r="40" fill="#ffffff"/>
+  <text x="120" y="244" text-anchor="middle" font-size="42" font-weight="800" fill="#1a1a1a">M</text>
+  <text x="180" y="218" font-size="28" font-weight="700" fill="#ffffff">Mana</text>
+  <text x="180" y="250" font-size="18" font-weight="500" fill="#a8a8a8">Health Navigator</text>
+
+  <!-- Hero text - bigger for square format -->
+  <text x="80" y="430" font-size="72" font-weight="800" fill="#ffffff">告诉我你的目标</text>
+  <text x="80" y="540" font-size="72" font-weight="800" fill="#ff6b6b">3 个 AI 专家</text>
+  <text x="80" y="630" font-size="72" font-weight="800" fill="#ff6b6b">+ 1 个导航员</text>
+  <text x="80" y="740" font-size="72" font-weight="800" fill="#ffffff">替你排好今天</text>
+
+  <!-- Sub line -->
+  <text x="80" y="820" font-size="26" fill="#a8a8a8">不是聊天 AI · 不是通用建议</text>
+  <text x="80" y="858" font-size="26" fill="#a8a8a8">每条都告诉你为什么</text>
+
+  <!-- 4 agent circles (centered horizontally) -->
+  <g transform="translate(0, 100)">
+    <!-- Diet -->
+    <circle cx="280" cy="900" r="55" fill="none" stroke="#10b981" stroke-width="4"/>
+    <text x="280" y="916" text-anchor="middle" font-size="26" font-weight="700" fill="#10b981">饮食</text>
+
+    <!-- Exercise -->
+    <circle cx="430" cy="900" r="55" fill="none" stroke="#f59e0b" stroke-width="4"/>
+    <text x="430" y="916" text-anchor="middle" font-size="26" font-weight="700" fill="#f59e0b">运动</text>
+
+    <!-- Sleep -->
+    <circle cx="580" cy="900" r="55" fill="none" stroke="#8b5cf6" stroke-width="4"/>
+    <text x="580" y="916" text-anchor="middle" font-size="26" font-weight="700" fill="#8b5cf6">睡眠</text>
+
+    <!-- Arrows merging into navigator -->
+    <line x1="640" y1="895" x2="780" y2="895" stroke="#666" stroke-width="2" stroke-dasharray="6 4"/>
+    <line x1="640" y1="905" x2="780" y2="905" stroke="#666" stroke-width="2" stroke-dasharray="6 4"/>
+
+    <!-- Navigator -->
+    <circle cx="870" cy="900" r="75" fill="none" stroke="#d72638" stroke-width="6"/>
+    <text x="870" y="918" text-anchor="middle" font-size="30" font-weight="800" fill="#d72638">导航员</text>
+  </g>
+
+  <!-- Bottom call to action -->
+  <text x="80" y="1130" font-size="22" font-weight="600" fill="#ffffff">→ 点开 30 秒看 AI 团队怎么排</text>
+  <text x="80" y="1162" font-size="16" fill="#666">mana-navigator-demo · Build in Public 系列</text>
+</svg>
