@@ -1,14 +1,17 @@
-// Simon's personal Mana experience · v0.1
-// Compliance · Drift · Chat-mutation-with-confirm · Settings
+// Simon's personal Mana experience · v0.2.1
+// Live data fetch + mock fallback + badge + error banner
 
 let currentTab = 'today';
 let chatMessages = [];
 let chartsRendered = {};
 let proposedChanges = null; // staged changes awaiting user confirm
+let dataSource = 'unknown'; // 'live' | 'demo' | 'demo-error' | 'unknown'
+let dataSourceDetail = {};
 
 // ========== INIT ==========
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   loadSettings();
+  await loadProfile();
   renderTopStatus();
   renderTodayTab();
   renderDietTab();
@@ -16,6 +19,123 @@ document.addEventListener('DOMContentLoaded', () => {
   renderSleepTab();
   switchTab('today');
 });
+
+// ========== LIVE DATA FETCH ==========
+async function loadProfile() {
+  try {
+    const resp = await fetch('/api/snapshot');
+    const data = await resp.json();
+
+    if (resp.ok && data._source === 'live') {
+      // Real upstream data — replace SIMON's properties
+      Object.assign(SIMON, data);
+      setDataSource('live', { generatedAt: data._generatedAt });
+      hideBanner();
+      return;
+    }
+
+    // 503: env vars not configured — silent demo mode (expected)
+    if (data._source === 'not-configured' || resp.status === 503) {
+      setDataSource('demo', {
+        reason: data.hint || 'MANA_API_BASE / MANA_API_KEY not set on Vercel'
+      });
+      hideBanner();
+      return;
+    }
+
+    // 502: env vars set, but upstream failed → show banner per Q6 (b)
+    setDataSource('demo-error', {
+      reason: data.error || 'Upstream returned an error',
+      detail: data.upstreamBody || ''
+    });
+    showBanner('Live data 后端不可达', data.error || '已自动切回 demo 数据');
+  } catch (err) {
+    setDataSource('demo-error', { reason: err.message });
+    showBanner('无法连接到 /api/snapshot', err.message);
+  }
+}
+
+function setDataSource(source, detail) {
+  dataSource = source;
+  dataSourceDetail = detail || {};
+
+  const badge = document.getElementById('dataSourceBadge');
+  const dot = document.getElementById('dataSourceDot');
+  const label = document.getElementById('dataSourceLabel');
+  if (!badge) return;
+
+  switch (source) {
+    case 'live':
+      badge.className = 'flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border bg-emerald-50 border-emerald-200 text-emerald-800';
+      dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+      label.textContent = 'Live';
+      break;
+    case 'demo':
+      badge.className = 'flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border bg-amber-50 border-amber-200 text-amber-800';
+      dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-500';
+      label.textContent = 'Demo';
+      break;
+    case 'demo-error':
+      badge.className = 'flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border bg-red-50 border-red-300 text-red-800';
+      dot.className = 'w-1.5 h-1.5 rounded-full bg-red-500';
+      label.textContent = 'Demo · 离线';
+      break;
+    default:
+      label.textContent = '检测中...';
+  }
+}
+
+function showBanner(title, detail) {
+  document.getElementById('errorBannerTitle').textContent = title;
+  document.getElementById('errorBannerDetail').textContent = detail || '';
+  document.getElementById('errorBanner').classList.remove('hidden');
+}
+
+function hideBanner() {
+  document.getElementById('errorBanner').classList.add('hidden');
+}
+
+function dismissBanner() { hideBanner(); }
+
+async function retryFetch() {
+  showBanner('正在重试...', '');
+  await loadProfile();
+  // Re-render top status (data may have changed)
+  renderTopStatus();
+}
+
+function showDataSourceInfo() {
+  const body = document.getElementById('dataSourceModalBody');
+  let html = '';
+  if (dataSource === 'live') {
+    html = `
+      <div class="flex items-center gap-2 text-emerald-700 font-semibold"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>Live · 来自后端</span></div>
+      <div class="text-stone-600">数据从 Mana 后端实时拉取 (经 Vercel proxy)</div>
+      ${dataSourceDetail.generatedAt ? `<div class="text-xs text-stone-500">最后更新: ${new Date(dataSourceDetail.generatedAt).toLocaleString('zh-CN')}</div>` : ''}
+    `;
+  } else if (dataSource === 'demo') {
+    html = `
+      <div class="flex items-center gap-2 text-amber-700 font-semibold"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span>Demo · 演示数据</span></div>
+      <div class="text-stone-600">后端 env vars 未配置, 使用本地 demo 数据.</div>
+      ${dataSourceDetail.reason ? `<div class="text-xs text-stone-500 bg-stone-50 p-2 rounded">${dataSourceDetail.reason}</div>` : ''}
+    `;
+  } else if (dataSource === 'demo-error') {
+    html = `
+      <div class="flex items-center gap-2 text-red-700 font-semibold"><span class="w-2 h-2 rounded-full bg-red-500"></span><span>Demo · 离线 (后端不可达)</span></div>
+      <div class="text-stone-600">后端 env vars 已配置, 但上游 fetch 失败. 已切回 demo 数据.</div>
+      ${dataSourceDetail.reason ? `<div class="text-xs text-red-700 bg-red-50 p-2 rounded">${dataSourceDetail.reason}</div>` : ''}
+      <button onclick="retryFetch();closeDataSourceModal()" class="mt-2 px-3 py-1.5 bg-stone-900 text-white text-xs font-semibold rounded">重试 fetch</button>
+    `;
+  } else {
+    html = `<div class="text-stone-600">检测中...</div>`;
+  }
+  body.innerHTML = html;
+  document.getElementById('dataSourceModal').classList.remove('hidden');
+}
+
+function closeDataSourceModal() {
+  document.getElementById('dataSourceModal').classList.add('hidden');
+}
 
 // ========== TOP STATUS (compliance + outcome + streak) ==========
 function renderTopStatus() {
@@ -600,5 +720,6 @@ document.addEventListener('keydown', (e) => {
     document.getElementById('whyModal').classList.add('hidden');
     document.getElementById('settingsModal').classList.add('hidden');
     document.getElementById('complianceModal').classList.add('hidden');
+    document.getElementById('dataSourceModal').classList.add('hidden');
   }
 });

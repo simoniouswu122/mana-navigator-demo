@@ -64,6 +64,39 @@ mana-navigator-demo/
 - The "why" modal is intentionally clean — single rationale, agent attribution at bottom
 - 3 principles section anchors the "AI team is making structured decisions" narrative
 
+## Switching `/me` to live data (v0.2)
+
+`/me` fetches `/api/snapshot` on load. By default it falls back to mock data when env vars aren't set.
+
+**To enable live data:**
+
+1. Stand up your Mana backend with these endpoints (see `DESIGN-v0.2.md` for contracts):
+   - `GET /me/v1/today/snapshot`
+   - `GET /me/v1/health/recent`
+   - `GET /me/v1/meals/recent`
+   - `GET /me/v1/training/recent`
+   All authenticated via bearer token.
+
+2. Add Vercel env vars (Project → Settings → Environment Variables):
+   ```
+   MANA_API_BASE=https://your-mana-api.example.com/me/v1
+   MANA_API_KEY=<your-bearer-token>
+   ```
+
+3. Redeploy. The header badge flips from amber "Demo" → green "Live".
+
+4. If backend is unreachable, error banner appears + badge goes red "Demo · 离线".
+
+**HealthKit sync (no iOS code needed):**
+
+Use [Health Auto Export](https://www.healthyapps.dev/) iOS app:
+- Schedule auto-export of HealthKit metrics (HRV, sleep, body comp, heart rate, activity)
+- Point its webhook at your `mana-app-server` `/webhooks/health-auto-export`
+- Server normalizes and stores in `health_data` table
+- Backend reads from there for `/me/v1/health/recent` endpoint
+
+This avoids any iOS engineering for v0.2.
+
 ## Future (when you have time)
 
 - [ ] **Wire real Claude API** (custom profile form → POST to API route → real generation)

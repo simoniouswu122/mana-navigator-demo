@@ -299,16 +299,21 @@ Clear instructions: how to flip from mock to live.
 
 ---
 
-## Open questions (待 Simon 决定)
+## Resolved decisions (2026-04-28)
 
-1. **Backend domain?** `api.mana.dev`? `api.simoniouswu.com`? Something existing?
-2. **First sync mechanism for HealthKit?** Health Auto Export (zero iOS work) or build into mana-ios (proper)?
-3. **Auth model?** Single bearer token for v0.2 (Simon-only) — confirmed?
-4. **Photo storage?** Where do meal photos live? (S3 / Cloudflare R2 / your own)
-5. **CORS or proxy-only?** I lean proxy-only (Vercel function calls backend, browser only talks to Vercel). Cleaner. Confirm?
-6. **Error states UI?** When fetch fails, fall through to mock silently OR show explicit "live data unavailable" message?
-7. **Should chat (`/api/chat`) also receive real data context?** Currently it gets a snapshot from frontend; v0.2 could pull live data server-side instead. Cleaner.
-8. **Refresh cadence?** Real-time via WebSocket / SSE? Polling every X seconds? Refresh-on-focus? I lean refresh-on-focus + manual refresh button.
+| # | 问题 | 决定 |
+|---|---|---|
+| 2 | First HealthKit sync | **Health Auto Export iOS app** → webhook (no iOS engineering for v0.2). Migrate to mana-ios native HealthKit reader later. |
+| 5 | Proxy-only vs CORS | **Proxy-only**. Browser only talks to Vercel functions; Vercel calls backend server-to-server with `MANA_API_KEY`. No CORS, secrets hidden. |
+| 6 | Error states UI | **Visible error banner** when env vars set but upstream unreachable. Silent fallback when env vars unset (intentional demo). |
+
+**Still open** (not blocking v0.2.1 ship):
+
+1. Backend domain — TBD
+3. Auth model for v0.3+ multi-user — TBD
+4. Photo storage — TBD
+7. Should `/api/chat` pull live data server-side? — likely yes in v0.2.4
+8. Refresh cadence — refresh-on-focus + manual button likely
 
 ---
 
