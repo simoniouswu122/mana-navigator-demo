@@ -82,12 +82,23 @@ export default async function handler(req, res) {
       stored.push({ date, fields: Object.keys(data) });
     }
 
-    // Track latest sync timestamp
+    // Track latest sync timestamp + last raw payload (for debugging)
     await kvSet('health:simon:_meta', {
       lastSyncAt: new Date().toISOString(),
       lastBatchSize: metrics.length + workouts.length,
-      datesUpdated: Object.keys(byDate)
+      datesUpdated: Object.keys(byDate),
+      metricNamesReceived: [...new Set(metrics.map(m => m.name))],
+      bodyShape: {
+        hasData: !!body?.data,
+        hasMetrics: Array.isArray(metrics),
+        metricsCount: metrics.length,
+        workoutsCount: workouts.length,
+        topLevelKeys: Object.keys(body || {})
+      }
     });
+    // Keep last raw payload for inspection (capped to first 5KB to avoid blowing up KV)
+    const rawSnippet = JSON.stringify(body).slice(0, 5000);
+    await kvSet('health:simon:_lastPayload', { receivedAt: new Date().toISOString(), snippet: rawSnippet });
 
     return res.status(200).json({
       ok: true,
@@ -106,66 +117,55 @@ function pickDate(point) {
 }
 
 function applyMetric(target, name, point) {
-  // Map Health Auto Export metric names to our schema
-  const qty = point.qty ?? point.value;
-  switch (name) {
-    case 'heart_rate_variability_sdnn':
-      target.hrv = qty;
-      target.hrvUnit = 'ms';
-      break;
-    case 'resting_heart_rate':
-      target.restingHR = qty;
-      break;
-    case 'heart_rate':
-      // Can be many points per day; keep latest
-      target.heartRate = qty;
-      break;
-    case 'sleep_analysis':
-      target.sleep = {
-        duration: point.asleep ?? point.totalSleep ?? point.value,
-        deep: point.deep,
-        rem: point.rem,
-        light: point.core ?? point.light,
-        awake: point.awake,
-        inBed: point.inBed,
-        bedTime: point.startDate ?? point.start,
-        wakeTime: point.endDate ?? point.end,
-        source: point.source
-      };
-      break;
-    case 'body_mass':
-    case 'weight':
+  // Be lenient — match against any name containing the keyword
+  const qty = point.qty ?? point.value ?? point.Avg ?? point.avg;
+  const n = name.toLowerCase();
+
+  if (n.includes('heart_rate_variability') || n.includes('hrv')) {
+    // Use latest non-null value if multiple points
+    if (qty != null) target.hrv = qty;
+    target.hrvUnit = 'ms';
+  } else if (n.includes('resting_heart_rate')) {
+    if (qty != null) target.restingHR = qty;
+  } else if (n.includes('heart_rate')) {
+    if (qty != null) target.heartRate = qty;
+  } else if (n.includes('sleep')) {
+    target.sleep = {
+      duration: point.asleep ?? point.totalSleep ?? point.value ?? point.qty,
+      deep: point.deep,
+      rem: point.rem,
+      light: point.core ?? point.light,
+      awake: point.awake,
+      inBed: point.inBed,
+      bedTime: point.startDate ?? point.start ?? point.sleepStart,
+      wakeTime: point.endDate ?? point.end ?? point.sleepEnd,
+      source: point.source
+    };
+  } else if (n.includes('body_mass') || n === 'weight' || n.includes('weight_body')) {
+    if (qty != null) {
       target.weight = qty;
       target.weightUnit = 'kg';
-      break;
-    case 'body_fat_percentage':
-      target.bodyFat = qty;
-      break;
-    case 'lean_body_mass':
-      target.leanMass = qty;
-      break;
-    case 'active_energy':
-      target.activeEnergy = (target.activeEnergy || 0) + qty;
-      break;
-    case 'basal_energy_burned':
-      target.basalEnergy = (target.basalEnergy || 0) + qty;
-      break;
-    case 'step_count':
-      target.steps = (target.steps || 0) + qty;
-      break;
-    case 'apple_exercise_time':
-      target.exerciseMinutes = (target.exerciseMinutes || 0) + qty;
-      break;
-    case 'respiratory_rate':
-      target.respiratoryRate = qty;
-      break;
-    case 'oxygen_saturation':
-      target.spo2 = qty;
-      break;
-    default:
-      // Capture unknown metrics raw, in case useful later
-      if (!target._raw) target._raw = {};
-      target._raw[name] = qty;
+    }
+  } else if (n.includes('body_fat')) {
+    if (qty != null) target.bodyFat = qty;
+  } else if (n.includes('lean_body_mass') || n.includes('lean_mass')) {
+    if (qty != null) target.leanMass = qty;
+  } else if (n.includes('active_energy')) {
+    target.activeEnergy = (target.activeEnergy || 0) + (qty || 0);
+  } else if (n.includes('basal_energy')) {
+    target.basalEnergy = (target.basalEnergy || 0) + (qty || 0);
+  } else if (n.includes('step_count') || n === 'steps') {
+    target.steps = (target.steps || 0) + (qty || 0);
+  } else if (n.includes('exercise_time')) {
+    target.exerciseMinutes = (target.exerciseMinutes || 0) + (qty || 0);
+  } else if (n.includes('respiratory')) {
+    if (qty != null) target.respiratoryRate = qty;
+  } else if (n.includes('oxygen_saturation') || n.includes('spo2')) {
+    if (qty != null) target.spo2 = qty;
+  } else {
+    // Unknown — capture raw for debugging
+    if (!target._raw) target._raw = {};
+    target._raw[name] = qty;
   }
 }
 

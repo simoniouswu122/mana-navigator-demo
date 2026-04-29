@@ -21,8 +21,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Read meta + last 14 days
+    // Read meta + last raw payload + last 14 days
     const meta = await kvGet('health:simon:_meta');
+    const lastPayload = await kvGet('health:simon:_lastPayload');
     const today = new Date();
     const days = [];
     for (let i = 0; i < 14; i++) {
@@ -49,6 +50,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       meta: meta || null,
+      lastPayloadReceivedAt: lastPayload?.receivedAt || null,
+      lastPayloadSnippet: lastPayload?.snippet ? lastPayload.snippet.slice(0, 800) : null,
       daysWithData: days.length,
       days,
       _generatedAt: new Date().toISOString(),
