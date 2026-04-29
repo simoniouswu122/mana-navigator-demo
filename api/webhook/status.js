@@ -1,0 +1,67 @@
+// GET /api/webhook/status?secret=<HEALTH_WEBHOOK_SECRET>
+// Debug endpoint — shows what's in KV right now, when it was last synced.
+
+export default async function handler(req, res) {
+  const expectedSecret = process.env.HEALTH_WEBHOOK_SECRET;
+  if (!expectedSecret) {
+    return res.status(503).json({ error: 'HEALTH_WEBHOOK_SECRET not configured' });
+  }
+  if (req.query.secret !== expectedSecret) {
+    return res.status(401).json({ error: 'invalid secret' });
+  }
+
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    return res.status(503).json({
+      error: 'KV not configured',
+      hint: 'In Vercel dashboard: Storage → Create Database → KV → Connect project'
+    });
+  }
+
+  try {
+    // Read meta + last 14 days
+    const meta = await kvGet('health:simon:_meta');
+    const today = new Date();
+    const days = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - i);
+      const dateKey = d.toISOString().slice(0, 10);
+      const data = await kvGet(`health:simon:daily:${dateKey}`);
+      if (data) {
+        days.push({
+          date: dateKey,
+          fields: Object.keys(data).filter(k => !k.startsWith('_')),
+          summary: {
+            hrv: data.hrv,
+            sleep_h: data.sleep?.duration,
+            weight: data.weight,
+            bodyFat: data.bodyFat,
+            steps: data.steps
+          },
+          lastUpdated: data._lastUpdated
+        });
+      }
+    }
+
+    return res.status(200).json({
+      ok: true,
+      meta: meta || null,
+      daysWithData: days.length,
+      days,
+      _generatedAt: new Date().toISOString()
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function kvGet(key) {
+  const r = await fetch(`${process.env.KV_REST_API_URL}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` }
+  });
+  if (!r.ok) return null;
+  const data = await r.json();
+  if (!data?.result) return null;
+  try { return typeof data.result === 'string' ? JSON.parse(data.result) : data.result; }
+  catch { return null; }
+}

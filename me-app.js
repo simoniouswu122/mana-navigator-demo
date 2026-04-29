@@ -27,31 +27,50 @@ async function loadProfile() {
     const data = await resp.json();
 
     if (resp.ok && data._source === 'live') {
-      // Real upstream data — replace SIMON's properties
+      // Full live: replace SIMON properties wholesale
       Object.assign(SIMON, data);
-      setDataSource('live', { generatedAt: data._generatedAt });
+      setDataSource('live', { generatedAt: data._generatedAt, fields: 'all' });
       hideBanner();
       return;
     }
 
-    // 503: env vars not configured — silent demo mode (expected)
-    if (data._source === 'not-configured' || resp.status === 503) {
-      setDataSource('demo', {
-        reason: data.hint || 'MANA_API_BASE / MANA_API_KEY not set on Vercel'
+    if (resp.ok && data._source === 'live-kv') {
+      // Partial live (KV-backed health data only) — merge into existing SIMON
+      mergeLiveKV(data);
+      setDataSource('live-partial', {
+        generatedAt: data._generatedAt,
+        fields: data._liveFields || []
       });
       hideBanner();
       return;
     }
 
-    // 502: env vars set, but upstream failed → show banner per Q6 (b)
+    if (data._source === 'not-configured' || resp.status === 503) {
+      setDataSource('demo', { reason: data.hint || '尚未连接 live 数据' });
+      hideBanner();
+      return;
+    }
+
     setDataSource('demo-error', {
-      reason: data.error || 'Upstream returned an error',
+      reason: data.error || '上游异常',
       detail: data.upstreamBody || ''
     });
     showBanner('Live data 后端不可达', data.error || '已自动切回 demo 数据');
   } catch (err) {
     setDataSource('demo-error', { reason: err.message });
     showBanner('无法连接到 /api/snapshot', err.message);
+  }
+}
+
+// Merge KV partial data into local SIMON (only the fields we have real data for)
+function mergeLiveKV(data) {
+  if (data.todayContext) {
+    if (data.todayContext.lastNightSleep != null) SIMON.todayContext.lastNightSleep = data.todayContext.lastNightSleep;
+    if (data.todayContext.lastNightHRV != null) SIMON.todayContext.lastNightHRV = data.todayContext.lastNightHRV;
+    if (data.todayContext.hrvBaseline != null) SIMON.todayContext.hrvBaseline = data.todayContext.hrvBaseline;
+  }
+  if (data.sleep?.lastNight) {
+    SIMON.sleep.lastNight = { ...SIMON.sleep.lastNight, ...data.sleep.lastNight };
   }
 }
 
@@ -69,6 +88,11 @@ function setDataSource(source, detail) {
       badge.className = 'flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border bg-emerald-50 border-emerald-200 text-emerald-800';
       dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
       label.textContent = 'Live';
+      break;
+    case 'live-partial':
+      badge.className = 'flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border bg-emerald-50 border-emerald-200 text-emerald-800';
+      dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+      label.textContent = 'Live · 部分';
       break;
     case 'demo':
       badge.className = 'flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border bg-amber-50 border-amber-200 text-amber-800';
