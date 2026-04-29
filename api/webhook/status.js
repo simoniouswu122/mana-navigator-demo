@@ -10,10 +10,13 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'invalid secret' });
   }
 
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!kvUrl || !kvToken) {
     return res.status(503).json({
-      error: 'KV not configured',
-      hint: 'In Vercel dashboard: Storage → Create Database → KV → Connect project'
+      error: 'KV/Redis not configured',
+      hint: 'In Vercel dashboard: Storage → Marketplace → Upstash → Connect project',
+      detected_env_keys: Object.keys(process.env).filter(k => k.startsWith('KV_') || k.startsWith('UPSTASH_'))
     });
   }
 
@@ -48,7 +51,8 @@ export default async function handler(req, res) {
       meta: meta || null,
       daysWithData: days.length,
       days,
-      _generatedAt: new Date().toISOString()
+      _generatedAt: new Date().toISOString(),
+      _kvSource: process.env.KV_REST_API_URL ? 'KV_*' : 'UPSTASH_*'
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -56,8 +60,10 @@ export default async function handler(req, res) {
 }
 
 async function kvGet(key) {
-  const r = await fetch(`${process.env.KV_REST_API_URL}/get/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` }
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  const r = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${token}` }
   });
   if (!r.ok) return null;
   const data = await r.json();

@@ -8,8 +8,8 @@
 export default async function handler(req, res) {
   const apiBase = process.env.MANA_API_BASE;
   const apiKey = process.env.MANA_API_KEY;
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   // Path 1: full upstream
   if (apiBase && apiKey) {

@@ -22,10 +22,15 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'invalid secret' });
   }
 
-  // Verify KV configured
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-    return res.status(503).json({ error: 'KV not configured (set up Vercel KV in dashboard)' });
+  // Verify KV/Redis configured (accept either Vercel KV or Upstash naming)
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!kvUrl || !kvToken) {
+    return res.status(503).json({ error: 'KV/Redis not configured (set up Upstash via Vercel Storage in dashboard)' });
   }
+  // Make available to helpers below
+  globalThis._kvUrl = kvUrl;
+  globalThis._kvToken = kvToken;
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -164,9 +169,17 @@ function applyMetric(target, name, point) {
   }
 }
 
+function getKVCreds() {
+  return {
+    url: globalThis._kvUrl || process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
+    token: globalThis._kvToken || process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
+  };
+}
+
 async function kvGet(key) {
-  const r = await fetch(`${process.env.KV_REST_API_URL}/get/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` }
+  const { url, token } = getKVCreds();
+  const r = await fetch(`${url}/get/${encodeURIComponent(key)}`, {
+    headers: { Authorization: `Bearer ${token}` }
   });
   if (!r.ok) return null;
   const data = await r.json();
@@ -176,10 +189,11 @@ async function kvGet(key) {
 }
 
 async function kvSet(key, value) {
-  const r = await fetch(`${process.env.KV_REST_API_URL}/set/${encodeURIComponent(key)}`, {
+  const { url, token } = getKVCreds();
+  const r = await fetch(`${url}/set/${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(value)

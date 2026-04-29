@@ -8,8 +8,8 @@ export default async function handler(req, res) {
   const days = parseInt(req.query.days || '14', 10);
   const apiBase = process.env.MANA_API_BASE;
   const apiKey = process.env.MANA_API_KEY;
-  const kvUrl = process.env.KV_REST_API_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
+  const kvUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   // Path 1: full upstream backend (v0.2.4+)
   if (apiBase && apiKey) {
