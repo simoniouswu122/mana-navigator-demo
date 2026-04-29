@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Also process workouts
+    // Also process workouts (HAE sends them as a richer object — keep more fields)
     for (const w of workouts) {
       const dateStr = pickDate(w);
       if (!dateStr) continue;
@@ -63,11 +63,16 @@ export default async function handler(req, res) {
       if (!byDate[dateKey]) byDate[dateKey] = {};
       if (!byDate[dateKey].workouts) byDate[dateKey].workouts = [];
       byDate[dateKey].workouts.push({
-        type: w.name || w.type,
-        duration: w.duration,
-        calories: w.totalEnergyBurned || w.activeEnergyBurned,
+        type: w.name || w.type || w.workoutActivityType,
+        duration: w.duration ?? w.elapsed ?? w.totalDuration,
+        durationUnit: w.durationUnit || 'min',
+        calories: w.totalEnergyBurned ?? w.activeEnergyBurned ?? w.energyBurned,
+        distance: w.totalDistance ?? w.distance,
+        avgHR: w.avgHeartRate ?? w.averageHeartRate,
+        maxHR: w.maxHeartRate,
         start: w.start || w.startDate,
-        end: w.end || w.endDate
+        end: w.end || w.endDate,
+        source: w.source
       });
     }
 
@@ -141,15 +146,19 @@ function applyMetric(target, name, point) {
       wakeTime: point.endDate ?? point.end ?? point.sleepEnd,
       source: point.source
     };
-  } else if (n.includes('body_mass') || n === 'weight' || n.includes('weight_body')) {
+  } else if (n.includes('body_fat')) {
+    // Must come before body_mass since "body_fat_percentage" includes "body"
+    if (qty != null) target.bodyFat = qty;
+  } else if (n.includes('lean_body_mass') || n.includes('lean_mass')) {
+    if (qty != null) target.leanMass = qty;
+  } else if (n.includes('body_mass_index') || n === 'bmi') {
+    if (qty != null) target.bmi = qty;
+  } else if (n.includes('weight') || n.includes('body_mass') || n === 'weight_body_mass') {
+    // Catches "weight_body_mass", "body_mass", "weight", "weight_&_body_mass"
     if (qty != null) {
       target.weight = qty;
       target.weightUnit = 'kg';
     }
-  } else if (n.includes('body_fat')) {
-    if (qty != null) target.bodyFat = qty;
-  } else if (n.includes('lean_body_mass') || n.includes('lean_mass')) {
-    if (qty != null) target.leanMass = qty;
   } else if (n.includes('active_energy')) {
     target.activeEnergy = (target.activeEnergy || 0) + (qty || 0);
   } else if (n.includes('basal_energy')) {

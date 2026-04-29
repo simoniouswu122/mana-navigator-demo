@@ -36,19 +36,41 @@ export default async function handler(req, res) {
 
       const sleepSource = yesterdayData?.sleep || todayData?.sleep;
       const hrvSource = todayData?.hrv ?? yesterdayData?.hrv;
+      // Latest weight = scan today first, then walk back up to 14 days
+      let weightPoint = null;
+      let weightDate = null;
+      const weightCandidates = [];
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(today.getTime() - i * 86400000);
+        const dk = d.toISOString().slice(0, 10);
+        const dat = i === 0 ? todayData : (i === 1 ? yesterdayData : await kvGet(`health:simon:daily:${dk}`, kvUrl, kvToken));
+        if (dat?.weight != null) {
+          weightCandidates.push({ date: dk, value: dat.weight });
+          if (!weightPoint) { weightPoint = dat.weight; weightDate = dk; }
+        }
+      }
+      const bodyFatPoint = todayData?.bodyFat ?? yesterdayData?.bodyFat;
+      const leanMassPoint = todayData?.leanMass ?? yesterdayData?.leanMass;
+      const stepsToday = todayData?.steps;
+      const activeEnergyToday = todayData?.activeEnergy;
+      const workoutsToday = todayData?.workouts || [];
 
-      if (sleepSource || hrvSource) {
+      const hasAnyData = sleepSource || hrvSource || weightPoint || stepsToday != null || workoutsToday.length;
+      if (hasAnyData) {
+        const liveFields = [];
         const partial = {
           _source: 'live-kv',
           _generatedAt: new Date().toISOString(),
-          _liveFields: ['todayContext', 'sleep'],
-          // Override the slices we have data for; frontend merges with local mock for the rest
-          todayContext: {
+        };
+
+        if (sleepSource || hrvSource) {
+          liveFields.push('todayContext', 'sleep');
+          partial.todayContext = {
             lastNightSleep: sleepSource?.duration,
             lastNightHRV: hrvSource,
-            hrvBaseline: 62 // TODO: compute from KV history
-          },
-          sleep: sleepSource ? {
+            hrvBaseline: 62
+          };
+          partial.sleep = sleepSource ? {
             lastNight: {
               duration: sleepSource.duration,
               target: 8,
@@ -59,8 +81,28 @@ export default async function handler(req, res) {
               hrv: hrvSource,
               restingHR: yesterdayData?.restingHR ?? todayData?.restingHR
             }
-          } : null
-        };
+          } : null;
+        }
+
+        if (weightPoint != null || bodyFatPoint != null || leanMassPoint != null) {
+          liveFields.push('body');
+          partial.body = {
+            weight: weightPoint != null ? { current: weightPoint, unit: 'kg', measuredOn: weightDate, history: weightCandidates.slice(0, 8).reverse().map(c => c.value) } : null,
+            bodyFat: bodyFatPoint != null ? { current: bodyFatPoint, unit: '%' } : null,
+            leanMass: leanMassPoint != null ? { current: leanMassPoint, unit: 'kg' } : null
+          };
+        }
+
+        if (workoutsToday.length || stepsToday != null || activeEnergyToday != null) {
+          liveFields.push('activity');
+          partial.activity = {
+            workouts: workoutsToday,
+            steps: stepsToday,
+            activeEnergy: activeEnergyToday
+          };
+        }
+
+        partial._liveFields = liveFields;
         res.setHeader('Cache-Control', 'public, max-age=60');
         return res.status(200).json(partial);
       }

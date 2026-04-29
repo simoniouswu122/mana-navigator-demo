@@ -72,6 +72,42 @@ function mergeLiveKV(data) {
   if (data.sleep?.lastNight) {
     SIMON.sleep.lastNight = { ...SIMON.sleep.lastNight, ...data.sleep.lastNight };
   }
+  // Body composition — replace current values when wearable/scale data exists
+  if (data.body) {
+    if (data.body.weight?.current != null) {
+      SIMON.body.weight.current = data.body.weight.current;
+      if (Array.isArray(data.body.weight.history) && data.body.weight.history.length) {
+        SIMON.body.weight.history = data.body.weight.history;
+      }
+      SIMON.body.weight._measuredOn = data.body.weight.measuredOn;
+      SIMON.body.weight._isLive = true;
+    }
+    if (data.body.bodyFat?.current != null) {
+      SIMON.body.bodyFat.current = data.body.bodyFat.current;
+      SIMON.body.bodyFat._isLive = true;
+    }
+    if (data.body.leanMass?.current != null) {
+      SIMON.body.leanMass.current = data.body.leanMass.current;
+      SIMON.body.leanMass._isLive = true;
+    }
+  }
+  // Activity — today's workout + steps + active energy from wearable
+  if (data.activity) {
+    if (Array.isArray(data.activity.workouts) && data.activity.workouts.length) {
+      const w = data.activity.workouts[0];
+      SIMON.exercise.today._liveWorkout = {
+        type: w.type,
+        duration: w.duration,
+        calories: w.calories,
+        distance: w.distance,
+        avgHR: w.avgHR,
+        maxHR: w.maxHR,
+        source: w.source
+      };
+    }
+    if (data.activity.steps != null) SIMON.todayContext.todaySteps = data.activity.steps;
+    if (data.activity.activeEnergy != null) SIMON.todayContext.todayActiveEnergy = data.activity.activeEnergy;
+  }
 }
 
 function setDataSource(source, detail) {
@@ -384,8 +420,19 @@ function renderDietChart() {
 // ========== EXERCISE TAB ==========
 function renderExerciseTab() {
   const ex = SIMON.exercise;
-  document.getElementById('todayTrainingType').textContent = ex.today.type;
-  document.getElementById('todayTrainingMeta').textContent = `约 ${ex.today.duration} 分钟 · 渐进超负荷`;
+  const live = ex.today._liveWorkout;
+  if (live) {
+    document.getElementById('todayTrainingType').textContent = `${live.type || '训练'} · 已记录`;
+    const bits = [];
+    if (live.duration) bits.push(`${Math.round(live.duration)} 分钟`);
+    if (live.calories) bits.push(`${Math.round(live.calories)} 卡`);
+    if (live.avgHR) bits.push(`平均 HR ${Math.round(live.avgHR)}`);
+    if (live.source) bits.push(live.source);
+    document.getElementById('todayTrainingMeta').textContent = bits.join(' · ') || '已同步';
+  } else {
+    document.getElementById('todayTrainingType').textContent = ex.today.type;
+    document.getElementById('todayTrainingMeta').textContent = `约 ${ex.today.duration} 分钟 · 渐进超负荷`;
+  }
   document.getElementById('todayLifts').innerHTML = ex.today.lifts.map(l => `
     <div class="px-2 py-3 flex items-center gap-4 hover:bg-stone-50 transition rounded">
       <div class="flex-1">
