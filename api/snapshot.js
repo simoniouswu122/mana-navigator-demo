@@ -65,7 +65,32 @@ export default async function handler(req, res) {
       const activeEnergyToday = todayData?.activeEnergy;
       const workoutsToday = todayData?.workouts || [];
 
-      const hasAnyData = sleepSource || hrvSource || weightPoint || stepsToday != null || workoutsToday.length;
+      // Meals — last 7 days from KV (separate namespace pushed by mana-app-server)
+      const mealsByDate = {};
+      let mealsSyncedAt = null;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(today.getTime() - i * 86400000);
+        const dk = d.toISOString().slice(0, 10);
+        const dat = await kvGet(`health:simon:meals:${dk}`, kvUrl, kvToken);
+        if (dat?.meals?.length) {
+          mealsByDate[dk] = dat.meals;
+          if (!mealsSyncedAt || (dat._lastUpdated && dat._lastUpdated > mealsSyncedAt)) {
+            mealsSyncedAt = dat._lastUpdated;
+          }
+        }
+      }
+      const todayMeals = mealsByDate[todayKey] || [];
+      const yesterdayMeals = mealsByDate[yesterdayKey] || [];
+      const todayTotals = todayMeals.reduce((acc, m) => {
+        acc.calories += m.calories || 0;
+        acc.protein += m.protein || 0;
+        acc.carbs += m.carbs || 0;
+        acc.fat += m.fat || 0;
+        acc.fiber += m.fiber || 0;
+        return acc;
+      }, { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+      const hasAnyData = sleepSource || hrvSource || weightPoint || stepsToday != null || workoutsToday.length || Object.keys(mealsByDate).length > 0;
       if (hasAnyData) {
         const liveFields = [];
         const partial = {
@@ -112,6 +137,34 @@ export default async function handler(req, res) {
             workouts: workoutsToday,
             steps: stepsToday,
             activeEnergy: activeEnergyToday
+          };
+        }
+
+        if (Object.keys(mealsByDate).length > 0) {
+          liveFields.push('diet');
+          // Build a flat recent list (today + yesterday), most-recent first, for the Diet tab
+          const recent = [];
+          for (const m of [...todayMeals].reverse()) recent.push({ ...m, _dayLabel: '今天' });
+          for (const m of [...yesterdayMeals].reverse()) recent.push({ ...m, _dayLabel: '昨天' });
+          // Then older days, just the last 5
+          const olderDates = Object.keys(mealsByDate)
+            .filter(d => d !== todayKey && d !== yesterdayKey)
+            .sort()
+            .reverse();
+          for (const d of olderDates) {
+            for (const m of [...mealsByDate[d]].reverse()) recent.push({ ...m, _dayLabel: d });
+          }
+          partial.diet = {
+            today: {
+              meals: todayMeals,
+              calories: Math.round(todayTotals.calories),
+              protein: Math.round(todayTotals.protein),
+              carbs: Math.round(todayTotals.carbs),
+              fat: Math.round(todayTotals.fat),
+              fiber: Math.round(todayTotals.fiber)
+            },
+            recent: recent.slice(0, 12),
+            syncedAt: mealsSyncedAt
           };
         }
 

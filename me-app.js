@@ -97,6 +97,35 @@ function mergeLiveKV(data) {
     }
   }
   if (data.sleep?.lastNight?.syncedAt) SIMON.sleep.lastNight._syncedAt = data.sleep.lastNight.syncedAt;
+  // Meals — replace today's totals + recent meals when mana-app-server has pushed data
+  if (data.diet) {
+    if (data.diet.today) {
+      SIMON.diet.today = {
+        ...SIMON.diet.today,
+        calories: data.diet.today.calories,
+        protein: data.diet.today.protein,
+        carbs: data.diet.today.carbs,
+        fat: data.diet.today.fat,
+        fiber: data.diet.today.fiber,
+        _isLive: true,
+        _liveMeals: data.diet.today.meals || []
+      };
+    }
+    if (Array.isArray(data.diet.recent) && data.diet.recent.length) {
+      SIMON.diet.recentMeals = data.diet.recent.map(m => ({
+        time: (m.dateTime || '').slice(11, 16),
+        date: m._dayLabel || '',
+        name: m.description || '已记录',
+        cal: m.calories,
+        protein: m.protein,
+        photo: pickFoodEmoji(m.type, m.description),
+        score: m.score,
+        picUrl: Array.isArray(m.picUrl) && m.picUrl.length ? m.picUrl[0] : null
+      }));
+      SIMON.diet._isLive = true;
+      SIMON.diet._syncedAt = data.diet.syncedAt;
+    }
+  }
   // Activity — today's workout + steps + active energy from wearable
   if (data.activity) {
     if (Array.isArray(data.activity.workouts) && data.activity.workouts.length) {
@@ -282,6 +311,30 @@ function renderChartsForTab(tab) {
   if (tab === 'exercise') { renderVolumeChart(); renderHRVChart(); renderStrengthChart(); }
   if (tab === 'sleep') renderSleepChart();
   if (tab === 'progress') renderProgressChart();
+}
+
+function pickFoodEmoji(type, desc = '') {
+  const d = (desc || '').toLowerCase();
+  if (/沙拉|salad|蔬菜/.test(d)) return '🥗';
+  if (/鱼|三文|salmon|fish/.test(d)) return '🐟';
+  if (/牛|beef/.test(d)) return '🥩';
+  if (/鸡|chicken/.test(d)) return '🍗';
+  if (/虾|shrimp/.test(d)) return '🍤';
+  if (/面|noodle|拉面/.test(d)) return '🍜';
+  if (/饭|rice|盖|bowl/.test(d)) return '🍚';
+  if (/汤|soup/.test(d)) return '🍲';
+  if (/汉堡|burger/.test(d)) return '🍔';
+  if (/披萨|pizza/.test(d)) return '🍕';
+  if (/水果|苹果|香蕉|fruit/.test(d)) return '🍎';
+  if (/蛋糕|甜|cake|sweet/.test(d)) return '🍰';
+  if (/咖啡|coffee/.test(d)) return '☕';
+  if (/酸奶|奶|yogurt|milk/.test(d)) return '🥛';
+  if (/蛋|egg/.test(d)) return '🍳';
+  if (type === 'breakfast') return '🍳';
+  if (type === 'lunch') return '🍱';
+  if (type === 'dinner') return '🍽️';
+  if (type === 'snack') return '🍎';
+  return '🍴';
 }
 
 function relativeTimeZh(iso) {
@@ -473,16 +526,30 @@ function renderDietTab() {
       </div>
     `;
   }).join('');
+  const live = SIMON.diet._isLive;
+  const liveStrip = document.getElementById('dietLiveStrip');
+  if (liveStrip) {
+    if (live && SIMON.diet._syncedAt) {
+      liveStrip.classList.remove('hidden');
+      liveStrip.textContent = `● 来自 Mana 食光机 · 同步于 ${relativeTimeZh(SIMON.diet._syncedAt)}`;
+    } else {
+      liveStrip.classList.add('hidden');
+    }
+  }
   document.getElementById('recentMeals').innerHTML = SIMON.diet.recentMeals.map(m => `
     <div class="p-4 flex items-center gap-4 hover:bg-stone-50 transition ${m.drift ? 'bg-orange-50/40' : ''}">
-      <div class="w-12 h-12 bg-stone-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">${m.photo}</div>
+      <div class="w-12 h-12 bg-stone-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">${
+        m.picUrl
+          ? `<img src="${m.picUrl}" class="w-full h-full object-cover" alt="" onerror="this.outerHTML='<span class=\\'text-2xl\\'>${m.photo || '🍴'}</span>'">`
+          : `<span class="text-2xl">${m.photo || '🍴'}</span>`
+      }</div>
       <div class="flex-1 min-w-0">
-        <div class="font-semibold text-sm">${m.name}${m.drift ? ' <span class="ml-1 inline-block px-1.5 py-0.5 bg-orange-200 text-orange-900 text-[10px] rounded font-bold">DRIFT</span>' : ''}</div>
-        <div class="text-xs text-stone-500 mt-0.5">${m.date} · ${m.time}</div>
+        <div class="font-semibold text-sm truncate">${m.name}${m.drift ? ' <span class="ml-1 inline-block px-1.5 py-0.5 bg-orange-200 text-orange-900 text-[10px] rounded font-bold">DRIFT</span>' : ''}</div>
+        <div class="text-xs text-stone-500 mt-0.5">${m.date} · ${m.time}${m.score ? ` · 评分 ${Math.round(m.score * 10) / 10}` : ''}</div>
       </div>
       <div class="text-right">
-        <div class="font-bold text-sm">${m.cal} <span class="text-xs text-stone-500 font-normal">大卡</span></div>
-        <div class="text-xs text-red-600 font-semibold">${m.protein}g 蛋白</div>
+        <div class="font-bold text-sm">${m.cal ?? '—'} <span class="text-xs text-stone-500 font-normal">大卡</span></div>
+        <div class="text-xs text-red-600 font-semibold">${m.protein ?? '—'}g 蛋白</div>
       </div>
     </div>
   `).join('');
