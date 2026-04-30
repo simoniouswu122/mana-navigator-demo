@@ -72,6 +72,8 @@ function mergeLiveKV(data) {
   if (data.sleep?.lastNight) {
     SIMON.sleep.lastNight = { ...SIMON.sleep.lastNight, ...data.sleep.lastNight };
   }
+  // Stash global last-sync time for header badge
+  SIMON._lastSyncAt = data._lastSyncAt || null;
   // Body composition — replace current values when wearable/scale data exists
   if (data.body) {
     if (data.body.weight?.current != null) {
@@ -80,17 +82,21 @@ function mergeLiveKV(data) {
         SIMON.body.weight.history = data.body.weight.history;
       }
       SIMON.body.weight._measuredOn = data.body.weight.measuredOn;
+      SIMON.body.weight._syncedAt = data.body.weight.syncedAt;
       SIMON.body.weight._isLive = true;
     }
     if (data.body.bodyFat?.current != null) {
       SIMON.body.bodyFat.current = data.body.bodyFat.current;
+      SIMON.body.bodyFat._syncedAt = data.body.bodyFat.syncedAt;
       SIMON.body.bodyFat._isLive = true;
     }
     if (data.body.leanMass?.current != null) {
       SIMON.body.leanMass.current = data.body.leanMass.current;
+      SIMON.body.leanMass._syncedAt = data.body.leanMass.syncedAt;
       SIMON.body.leanMass._isLive = true;
     }
   }
+  if (data.sleep?.lastNight?.syncedAt) SIMON.sleep.lastNight._syncedAt = data.sleep.lastNight.syncedAt;
   // Activity — today's workout + steps + active energy from wearable
   if (data.activity) {
     if (Array.isArray(data.activity.workouts) && data.activity.workouts.length) {
@@ -142,6 +148,17 @@ function setDataSource(source, detail) {
       break;
     default:
       label.textContent = '检测中...';
+  }
+
+  // Surface last-sync timestamp on the badge for live/live-partial states
+  const syncedAtEl = document.getElementById('dataSourceSyncedAt');
+  if (syncedAtEl) {
+    if ((source === 'live' || source === 'live-partial') && SIMON._lastSyncAt) {
+      syncedAtEl.textContent = relativeTimeZh(SIMON._lastSyncAt);
+      syncedAtEl.classList.remove('hidden');
+    } else {
+      syncedAtEl.classList.add('hidden');
+    }
   }
 }
 
@@ -267,6 +284,22 @@ function renderChartsForTab(tab) {
   if (tab === 'progress') renderProgressChart();
 }
 
+function relativeTimeZh(iso) {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const diff = Date.now() - t;
+  if (diff < 0) return '刚刚';
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return '刚刚';
+  if (min < 60) return `${min} 分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小时前`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day} 天前`;
+  return new Date(iso).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+}
+
 function renderProgressCards() {
   const w = SIMON.body.weight, bf = SIMON.body.bodyFat, lm = SIMON.body.leanMass;
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -289,6 +322,7 @@ function renderProgressCards() {
     set('weightDelta', `${direction} ${Math.abs(doneDelta).toFixed(1)}kg`);
   }
   if (w._isLive) show('weightLiveBadge');
+  set('weightSyncedAt', w._isLive && w._syncedAt ? `同步于 ${relativeTimeZh(w._syncedAt)}` : '');
 
   // Body fat
   const bfCurrent = (typeof bf.current === 'number') ? bf.current.toFixed(1) : '—';
@@ -306,6 +340,7 @@ function renderProgressCards() {
     set('bodyFatDelta', `${direction} ${Math.abs(doneDelta).toFixed(1)}%`);
   }
   if (bf._isLive) show('bodyFatLiveBadge');
+  set('bodyFatSyncedAt', bf._isLive && bf._syncedAt ? `同步于 ${relativeTimeZh(bf._syncedAt)}` : '');
 
   // Lean mass (target is to GAIN, so the math flips)
   const lmCurrent = (typeof lm.current === 'number') ? lm.current.toFixed(1) : '—';
@@ -323,6 +358,7 @@ function renderProgressCards() {
     set('leanMassDelta', label);
   }
   if (lm._isLive) show('leanMassLiveBadge');
+  set('leanMassSyncedAt', lm._isLive && lm._syncedAt ? `同步于 ${relativeTimeZh(lm._syncedAt)}` : '');
 }
 
 // ========== TODAY TAB ==========

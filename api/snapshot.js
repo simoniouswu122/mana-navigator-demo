@@ -28,6 +28,7 @@ export default async function handler(req, res) {
   // Path 2: KV partial — health-only
   if (kvUrl && kvToken) {
     try {
+      const meta = await kvGet('health:simon:_meta', kvUrl, kvToken);
       const today = new Date();
       const todayKey = today.toISOString().slice(0, 10);
       const todayData = await kvGet(`health:simon:daily:${todayKey}`, kvUrl, kvToken);
@@ -35,10 +36,13 @@ export default async function handler(req, res) {
       const yesterdayData = await kvGet(`health:simon:daily:${yesterdayKey}`, kvUrl, kvToken);
 
       const sleepSource = yesterdayData?.sleep || todayData?.sleep;
+      const sleepSyncedAt = (yesterdayData?.sleep ? yesterdayData?._lastUpdated : todayData?._lastUpdated);
       const hrvSource = todayData?.hrv ?? yesterdayData?.hrv;
+      const hrvSyncedAt = (todayData?.hrv != null ? todayData?._lastUpdated : yesterdayData?._lastUpdated);
       // Latest weight = scan today first, then walk back up to 14 days
       let weightPoint = null;
       let weightDate = null;
+      let weightSyncedAt = null;
       const weightCandidates = [];
       for (let i = 0; i < 14; i++) {
         const d = new Date(today.getTime() - i * 86400000);
@@ -46,11 +50,17 @@ export default async function handler(req, res) {
         const dat = i === 0 ? todayData : (i === 1 ? yesterdayData : await kvGet(`health:simon:daily:${dk}`, kvUrl, kvToken));
         if (dat?.weight != null) {
           weightCandidates.push({ date: dk, value: dat.weight });
-          if (!weightPoint) { weightPoint = dat.weight; weightDate = dk; }
+          if (!weightPoint) {
+            weightPoint = dat.weight;
+            weightDate = dk;
+            weightSyncedAt = dat._lastUpdated;
+          }
         }
       }
       const bodyFatPoint = todayData?.bodyFat ?? yesterdayData?.bodyFat;
+      const bodyFatSyncedAt = (todayData?.bodyFat != null ? todayData?._lastUpdated : yesterdayData?._lastUpdated);
       const leanMassPoint = todayData?.leanMass ?? yesterdayData?.leanMass;
+      const leanMassSyncedAt = (todayData?.leanMass != null ? todayData?._lastUpdated : yesterdayData?._lastUpdated);
       const stepsToday = todayData?.steps;
       const activeEnergyToday = todayData?.activeEnergy;
       const workoutsToday = todayData?.workouts || [];
@@ -61,6 +71,7 @@ export default async function handler(req, res) {
         const partial = {
           _source: 'live-kv',
           _generatedAt: new Date().toISOString(),
+          _lastSyncAt: meta?.lastSyncAt || null,
         };
 
         if (sleepSource || hrvSource) {
@@ -79,17 +90,19 @@ export default async function handler(req, res) {
               quality: sleepSource.duration ? Math.round(Math.min(100, sleepSource.duration / 8 * 90)) : null,
               stages: { deep: sleepSource.deep, rem: sleepSource.rem, light: sleepSource.light },
               hrv: hrvSource,
-              restingHR: yesterdayData?.restingHR ?? todayData?.restingHR
-            }
+              restingHR: yesterdayData?.restingHR ?? todayData?.restingHR,
+              syncedAt: sleepSyncedAt
+            },
+            _hrvSyncedAt: hrvSyncedAt
           } : null;
         }
 
         if (weightPoint != null || bodyFatPoint != null || leanMassPoint != null) {
           liveFields.push('body');
           partial.body = {
-            weight: weightPoint != null ? { current: weightPoint, unit: 'kg', measuredOn: weightDate, history: weightCandidates.slice(0, 8).reverse().map(c => c.value) } : null,
-            bodyFat: bodyFatPoint != null ? { current: bodyFatPoint, unit: '%' } : null,
-            leanMass: leanMassPoint != null ? { current: leanMassPoint, unit: 'kg' } : null
+            weight: weightPoint != null ? { current: weightPoint, unit: 'kg', measuredOn: weightDate, syncedAt: weightSyncedAt, history: weightCandidates.slice(0, 8).reverse().map(c => c.value) } : null,
+            bodyFat: bodyFatPoint != null ? { current: bodyFatPoint, unit: '%', syncedAt: bodyFatSyncedAt } : null,
+            leanMass: leanMassPoint != null ? { current: leanMassPoint, unit: 'kg', syncedAt: leanMassSyncedAt } : null
           };
         }
 

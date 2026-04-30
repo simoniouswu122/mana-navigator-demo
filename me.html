@@ -63,6 +63,7 @@
       <button id="dataSourceBadge" onclick="showDataSourceInfo()" class="flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-semibold border bg-stone-100 border-stone-200 text-stone-600" title="数据源">
         <span id="dataSourceDot" class="w-1.5 h-1.5 rounded-full bg-stone-400"></span>
         <span id="dataSourceLabel">检测中...</span>
+        <span id="dataSourceSyncedAt" class="hidden text-stone-500 font-normal pl-1 border-l border-stone-300"></span>
       </button>
       <button onclick="openSettings()" class="p-2 hover:bg-stone-100 rounded-lg" title="设置">⚙️</button>
       <button onclick="toggleChat()" class="flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 text-white text-xs font-semibold rounded-lg hover:bg-stone-700 transition">
@@ -343,7 +344,7 @@
           <div><div class="text-stone-500">目标</div><div id="weightTarget" class="font-bold mt-0.5">—</div></div>
         </div>
         <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden"><div id="weightBar" class="h-full bg-emerald-500" style="width: 0%"></div></div>
-        <div class="mt-1 text-xs text-stone-500"><span id="weightProgress">—</span></div>
+        <div class="mt-1 text-xs text-stone-500 flex justify-between"><span id="weightProgress">—</span><span id="weightSyncedAt" class="text-emerald-700"></span></div>
       </div>
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
         <div class="flex items-center justify-between mb-3">
@@ -357,7 +358,7 @@
           <div><div class="text-stone-500">目标</div><div id="bodyFatTarget" class="font-bold mt-0.5">—</div></div>
         </div>
         <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden"><div id="bodyFatBar" class="h-full bg-emerald-500" style="width: 0%"></div></div>
-        <div class="mt-1 text-xs text-stone-500"><span id="bodyFatProgress">—</span></div>
+        <div class="mt-1 text-xs text-stone-500 flex justify-between"><span id="bodyFatProgress">—</span><span id="bodyFatSyncedAt" class="text-emerald-700"></span></div>
       </div>
       <div class="bg-white border border-stone-200 rounded-2xl p-5">
         <div class="flex items-center justify-between mb-3">
@@ -371,7 +372,7 @@
           <div><div class="text-stone-500">目标</div><div id="leanMassTarget" class="font-bold mt-0.5">—</div></div>
         </div>
         <div class="mt-3 h-2 bg-stone-100 rounded-full overflow-hidden"><div id="leanMassBar" class="h-full bg-amber-500" style="width: 0%"></div></div>
-        <div class="mt-1 text-xs text-amber-700">⚠ 减脂期保住肌肉是首要任务，蛋白要跟上</div>
+        <div class="mt-1 text-xs flex justify-between"><span class="text-amber-700">⚠ 减脂期保住肌肉是首要任务，蛋白要跟上</span><span id="leanMassSyncedAt" class="text-emerald-700"></span></div>
       </div>
     </div>
     <div class="bg-white border border-stone-200 rounded-2xl p-5">
