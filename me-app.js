@@ -258,12 +258,71 @@ function switchTab(tab) {
 }
 
 function renderChartsForTab(tab) {
+  if (tab === 'progress') renderProgressCards();  // always re-run, picks up live merges
   if (chartsRendered[tab]) return;
   chartsRendered[tab] = true;
   if (tab === 'diet') renderDietChart();
   if (tab === 'exercise') { renderVolumeChart(); renderHRVChart(); renderStrengthChart(); }
   if (tab === 'sleep') renderSleepChart();
   if (tab === 'progress') renderProgressChart();
+}
+
+function renderProgressCards() {
+  const w = SIMON.body.weight, bf = SIMON.body.bodyFat, lm = SIMON.body.leanMass;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  const setW = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = pct + '%'; };
+  const show = (id) => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); };
+
+  // Weight
+  const wCurrent = (typeof w.current === 'number') ? w.current.toFixed(1) : '—';
+  set('weightCurrent', wCurrent);
+  set('weightCurrent2', wCurrent);
+  set('weightStart', w.start?.toFixed(1) ?? '—');
+  set('weightTarget', w.target?.toFixed(1) ?? '—');
+  if (typeof w.current === 'number' && typeof w.start === 'number' && typeof w.target === 'number') {
+    const totalDelta = w.start - w.target;
+    const doneDelta = w.start - w.current;
+    const pct = totalDelta !== 0 ? Math.round(Math.max(0, Math.min(100, (doneDelta / totalDelta) * 100))) : 0;
+    setW('weightBar', pct);
+    set('weightProgress', `完成 ${pct}%`);
+    const direction = doneDelta >= 0 ? '↓' : '↑';
+    set('weightDelta', `${direction} ${Math.abs(doneDelta).toFixed(1)}kg`);
+  }
+  if (w._isLive) show('weightLiveBadge');
+
+  // Body fat
+  const bfCurrent = (typeof bf.current === 'number') ? bf.current.toFixed(1) : '—';
+  set('bodyFatCurrent', bfCurrent);
+  set('bodyFatCurrent2', bfCurrent);
+  set('bodyFatStart', bf.start?.toFixed(1) ?? '—');
+  set('bodyFatTarget', bf.target?.toFixed(1) ?? '—');
+  if (typeof bf.current === 'number' && typeof bf.start === 'number' && typeof bf.target === 'number') {
+    const totalDelta = bf.start - bf.target;
+    const doneDelta = bf.start - bf.current;
+    const pct = totalDelta !== 0 ? Math.round(Math.max(0, Math.min(100, (doneDelta / totalDelta) * 100))) : 0;
+    setW('bodyFatBar', pct);
+    set('bodyFatProgress', `完成 ${pct}%`);
+    const direction = doneDelta >= 0 ? '↓' : '↑';
+    set('bodyFatDelta', `${direction} ${Math.abs(doneDelta).toFixed(1)}%`);
+  }
+  if (bf._isLive) show('bodyFatLiveBadge');
+
+  // Lean mass (target is to GAIN, so the math flips)
+  const lmCurrent = (typeof lm.current === 'number') ? lm.current.toFixed(1) : '—';
+  set('leanMassCurrent', lmCurrent);
+  set('leanMassCurrent2', lmCurrent);
+  set('leanMassStart', lm.start?.toFixed(1) ?? '—');
+  set('leanMassTarget', lm.target?.toFixed(1) ?? '—');
+  if (typeof lm.current === 'number' && typeof lm.start === 'number' && typeof lm.target === 'number') {
+    const totalDelta = lm.target - lm.start;
+    const doneDelta = lm.current - lm.start;
+    const pct = totalDelta !== 0 ? Math.round(Math.max(0, Math.min(100, (doneDelta / totalDelta) * 100))) : 0;
+    setW('leanMassBar', pct);
+    const direction = doneDelta >= 0.05 ? '↑' : (doneDelta <= -0.05 ? '↓' : '→');
+    const label = direction === '→' ? '持平' : `${direction} ${Math.abs(doneDelta).toFixed(1)}kg`;
+    set('leanMassDelta', label);
+  }
+  if (lm._isLive) show('leanMassLiveBadge');
 }
 
 // ========== TODAY TAB ==========
