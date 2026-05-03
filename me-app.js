@@ -29,6 +29,7 @@ async function loadProfile() {
     if (resp.ok && data._source === 'live') {
       // Full live: replace SIMON properties wholesale
       Object.assign(SIMON, data);
+      window._snapshot = data;
       setDataSource('live', { generatedAt: data._generatedAt, fields: 'all' });
       hideBanner();
       return;
@@ -37,6 +38,7 @@ async function loadProfile() {
     if (resp.ok && data._source === 'live-kv') {
       // Partial live (KV-backed health data only) — merge into existing SIMON
       mergeLiveKV(data);
+      window._snapshot = data;
       setDataSource('live-partial', {
         generatedAt: data._generatedAt,
         fields: data._liveFields || []
@@ -416,8 +418,180 @@ function renderProgressCards() {
 
 // ========== TODAY TAB ==========
 function renderTodayTab() {
-  document.getElementById('todayTradeoff').textContent = SIMON.tradeoff;
-  renderTimeline();
+  const snapshot = window._snapshot;
+  const isLive = snapshot && (snapshot._source === 'live' || snapshot._source === 'live-kv');
+
+  // Drift alert + tradeoff narrative are mock-only for now (the navigator
+  // backend's planned schedule isn't wired into /api/snapshot yet). Hide
+  // them in live mode to avoid showing misleading hardcoded copy.
+  const drift = document.getElementById('driftAlert');
+  const tradeoff = document.getElementById('todayTradeoff');
+  if (isLive) {
+    if (drift) drift.style.display = 'none';
+    if (tradeoff) tradeoff.textContent = '今日按记录到的实际数据展示。计划 / drift 检测会在导航员后端接入后启用。';
+    renderRealTimeline(snapshot);
+  } else {
+    if (drift) drift.style.display = '';
+    if (tradeoff) tradeoff.textContent = SIMON.tradeoff;
+    renderTimeline();
+  }
+}
+
+// ============================================================
+// Real timeline — chronological view of today's actual events.
+// Triggered when /api/snapshot returns live data. No fake plan/drift,
+// just what actually happened sourced from sleep + meals + workouts.
+// ============================================================
+
+function renderRealTimeline(snapshot) {
+  const items = collectRealTimelineItems(snapshot);
+  const timeline = document.getElementById('todayTimeline');
+  if (items.length === 0) {
+    timeline.innerHTML = renderEmptyTodayState(snapshot);
+    return;
+  }
+  timeline.innerHTML = items.map(item => `
+    <div class="w-full text-left p-4 flex items-start gap-4 ${item.bg || ''}">
+      <div class="flex flex-col items-center w-16 flex-shrink-0">
+        <div class="text-xs font-semibold text-stone-500">${item.time}</div>
+        <div class="text-2xl mt-1">${item.icon}</div>
+        <div class="mt-1"><span class="text-xs text-emerald-700 font-semibold">${item.marker || '✅'}</span></div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="font-semibold text-stone-800">${item.title}</div>
+        ${item.detail ? `<div class="text-sm text-stone-500">${item.detail}</div>` : ''}
+        ${item.note ? `<div class="text-xs text-emerald-700 mt-1">${item.note}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function collectRealTimelineItems(snapshot) {
+  const items = [];
+
+  // Sleep — wake time as the first event of the day.
+  const sl = snapshot?.sleep?.lastNight;
+  if (sl?.wakeTime || sl?.duration != null) {
+    const wakeHM = parseClockHM(sl.wakeTime);
+    const dur = sl.duration;
+    const target = sl.target || 8;
+    const onTarget = dur != null ? dur >= target * 0.875 : null; // ≥7h on 8h target
+    items.push({
+      sortTime: wakeHM || '00:00',
+      time: wakeHM || '?',
+      icon: '☀️',
+      title: dur != null ? `起床 · 睡了 ${dur.toFixed(1)} 小时` : '起床',
+      detail: sl.bedTime ? `${formatClock(sl.bedTime)} → ${formatClock(sl.wakeTime)} (目标 ${target}h)` : null,
+      note: dur != null ? (onTarget ? '✓ 接近目标' : `差 ${(target - dur).toFixed(1)}h`) : null,
+      bg: 'bg-stone-50/50',
+      marker: onTarget ? '✅' : '⚠️',
+    });
+  }
+
+  // Meals — each at its actual time.
+  const meals = snapshot?.diet?.today?.meals || [];
+  for (const m of meals) {
+    const t = parseClockHM(m.dateTime || m.time);
+    items.push({
+      sortTime: t || '12:00',
+      time: t || '?',
+      icon: mealIcon(m),
+      title: m.description || m.title || '一餐',
+      detail: `${Math.round(m.calories || 0)} 大卡 · ${Math.round(m.protein || 0)}g 蛋白`,
+      note: m.score != null ? `评分 ${m.score}` : null,
+      bg: 'bg-emerald-50/40',
+    });
+  }
+
+  // Workouts.
+  const workouts = snapshot?.activity?.workouts || [];
+  for (const w of workouts) {
+    const t = parseClockHM(w.startTime || w.start_time);
+    items.push({
+      sortTime: t || '18:00',
+      time: t || '?',
+      icon: '💪',
+      title: w.type || w.activityType || '训练',
+      detail: w.durationMin ? `${Math.round(w.durationMin)} 分钟 · ${Math.round(w.activeEnergyKcal || w.calories || 0)} 大卡` : null,
+      bg: 'bg-emerald-50/40',
+    });
+  }
+
+  // Steps as a footer item if any (low priority — only show if no other activity).
+  const steps = snapshot?.activity?.steps;
+  if (steps != null && workouts.length === 0) {
+    items.push({
+      sortTime: '23:59',
+      time: '今日',
+      icon: '👣',
+      title: `步数 · ${steps.toLocaleString()}`,
+      detail: snapshot.activity.activeEnergy
+        ? `主动消耗 ${Math.round(snapshot.activity.activeEnergy)} 大卡`
+        : null,
+      bg: 'bg-stone-50/50',
+      marker: steps >= 8000 ? '✅' : '⏳',
+    });
+  }
+
+  items.sort((a, b) => a.sortTime.localeCompare(b.sortTime));
+  return items;
+}
+
+function renderEmptyTodayState(snapshot) {
+  // Find the most recent meal across the recent[] array — the diagnostic moment.
+  const recent = snapshot?.diet?.recent || [];
+  const lastMeal = recent[0];
+  const daysAgo = lastMeal?.dateTime ? Math.floor((Date.now() - new Date(lastMeal.dateTime)) / 86400000) : null;
+  const lastWorkoutTime = snapshot?.activity?.workouts?.[0]?.startTime || null;
+  return `
+    <div class="p-8 text-center">
+      <div class="text-4xl mb-3">📭</div>
+      <div class="text-base font-semibold text-stone-700 mb-1">今天还没有记录</div>
+      <div class="text-sm text-stone-500 mb-4">
+        Apple Health 数据已同步，但今天没有拍照记录的餐食或训练。
+      </div>
+      ${lastMeal ? `
+      <div class="bg-stone-50 rounded-lg p-3 text-left max-w-md mx-auto">
+        <div class="text-xs font-semibold text-stone-600 uppercase tracking-wider mb-1">最近一次记录</div>
+        <div class="text-sm text-stone-800">
+          <span class="font-semibold">${lastMeal.description || '一餐'}</span>
+          · ${Math.round(lastMeal.calories || 0)} 大卡
+        </div>
+        <div class="text-xs text-stone-500 mt-0.5">
+          ${formatClock(lastMeal.dateTime)} ${daysAgo != null && daysAgo > 0 ? `· ${daysAgo} 天前` : ''}
+        </div>
+      </div>
+      ` : ''}
+      ${snapshot?.activity?.steps != null ? `
+      <div class="mt-3 text-xs text-stone-500">
+        今日步数：${snapshot.activity.steps.toLocaleString()} 步 · 主动消耗 ${Math.round(snapshot.activity.activeEnergy || 0)} 大卡
+      </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Helpers
+function parseClockHM(s) {
+  if (!s) return null;
+  // Accepts "2026-04-30T20:11:08+08:00", "2026-05-01 23:44:27 +0800", "20:11"
+  const m = String(s).match(/(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : null;
+}
+
+function formatClock(s) {
+  if (!s) return '';
+  const t = parseClockHM(s);
+  return t || s;
+}
+
+function mealIcon(m) {
+  const t = (m.type || '').toLowerCase();
+  if (t.includes('breakfast') || t.includes('早')) return '🍳';
+  if (t.includes('lunch') || t.includes('午')) return '🥗';
+  if (t.includes('dinner') || t.includes('晚')) return '🍱';
+  if (t.includes('snack') || t.includes('加')) return '🍎';
+  return '🍽️';
 }
 
 function renderTimeline() {
