@@ -259,7 +259,9 @@ function renderTopStatus() {
   // Drilldown minis
   document.getElementById('dietMini').textContent = `${SIMON.diet.today.calories} / ${SIMON.diet.targetCalories} 卡`;
   document.getElementById('exerciseMini').textContent = `今日 ${SIMON.exercise.today.type}`;
-  document.getElementById('sleepMini').textContent = `昨晚 ${SIMON.sleep.lastNight.duration}h · 质量 ${SIMON.sleep.lastNight.quality}`;
+  const sleepDur = SIMON.sleep.lastNight.duration;
+  document.getElementById('sleepMini').textContent =
+    `昨晚 ${typeof sleepDur === 'number' ? sleepDur.toFixed(1) : sleepDur}h · 质量 ${SIMON.sleep.lastNight.quality}`;
   document.getElementById('progressMini').textContent = `${o.weeksDone}/${o.weeksTotal} 周 · ${o.pct}%`;
 }
 
@@ -500,6 +502,27 @@ function collectRealTimelineItems(snapshot) {
       detail: `${Math.round(m.calories || 0)} 大卡 · ${Math.round(m.protein || 0)}g 蛋白`,
       note: m.score != null ? `评分 ${m.score}` : null,
       bg: 'bg-emerald-50/40',
+    });
+  }
+
+  // Always surface meal status so the user can see "no meals logged today"
+  // without having to dig — this is the iOS sync diagnostic surfaced in UI.
+  if (meals.length === 0) {
+    const recent = snapshot?.diet?.recent || [];
+    const lastMeal = recent[0];
+    const daysAgo = lastMeal?.dateTime
+      ? Math.floor((Date.now() - new Date(lastMeal.dateTime)) / 86400000)
+      : null;
+    items.push({
+      sortTime: '12:00',
+      time: '今日',
+      icon: '📭',
+      title: '今天还没拍过餐',
+      detail: lastMeal
+        ? `最近一次:${lastMeal.description || '一餐'} · ${Math.round(lastMeal.calories || 0)} 大卡 · ${formatClock(lastMeal.dateTime)}${daysAgo > 0 ? ` (${daysAgo} 天前)` : ''}`
+        : '没有最近记录',
+      bg: 'bg-stone-50/50',
+      marker: '⏳',
     });
   }
 
