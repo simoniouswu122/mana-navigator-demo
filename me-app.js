@@ -416,6 +416,114 @@ function renderProgressCards() {
   }
   if (lm._isLive) show('leanMassLiveBadge');
   set('leanMassSyncedAt', lm._isLive && lm._syncedAt ? `同步于 ${relativeTimeZh(lm._syncedAt)}` : '');
+
+  renderWeeklyInsights();
+}
+
+// ============================================================
+// Weekly insights — overall + per-kind compliance breakdown.
+// Mirrors the v0.4 contract /navigator/progress endpoint shape.
+// Currently derived client-side from /api/snapshot data; will switch
+// to a real backend call once /navigator/progress ships.
+// ============================================================
+function renderWeeklyInsights() {
+  const snapshot = window._snapshot;
+  const isLive = snapshot && (snapshot._source === 'live' || snapshot._source === 'live-kv');
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+  // Compute per-kind stats. Each kind reports:
+  //   { pct, detail }
+  // pct is a 0-100 compliance estimate. detail is a 1-line subtitle
+  // showing the secondary metric the contract spec'd for that kind.
+
+  const diet = computeDietWeek(snapshot);
+  const exercise = computeExerciseWeek(snapshot);
+  const sleep = computeSleepWeek(snapshot);
+
+  // Overall = simple average of the three (weighted equally).
+  const overall = Math.round((diet.pct + exercise.pct + sleep.pct) / 3);
+
+  set('insightsOverallPct', overall);
+  set('insightsDietPct', diet.pct);
+  set('insightsDietDetail', diet.detail);
+  set('insightsExercisePct', exercise.pct);
+  set('insightsExerciseDetail', exercise.detail);
+  set('insightsSleepPct', sleep.pct);
+  set('insightsSleepDetail', sleep.detail);
+
+  set('insightsSourceNote', isLive
+    ? '客户端聚合 · /api/snapshot 数据 (v0.4 /navigator/progress 上线后切到后端)'
+    : '演示数据 (live snapshot 未连接)'
+  );
+}
+
+function computeDietWeek(snapshot) {
+  // Use diet.recent meals as the lookback. Compute average daily kcal vs
+  // the 2200 kcal target. Compliance = clamp(avg / target, 0, 1.2) → 0-100,
+  // capped at 100 (over-target also penalizes but less than under-target).
+  const recent = snapshot?.diet?.recent || [];
+  if (recent.length === 0) {
+    return { pct: 0, detail: '暂无餐食记录' };
+  }
+  // Group by date, sum kcal per day.
+  const byDay = {};
+  for (const m of recent) {
+    const d = (m.dateTime || m.date || '').slice(0, 10);
+    if (!d) continue;
+    byDay[d] = (byDay[d] || 0) + (m.calories || 0);
+  }
+  const days = Object.keys(byDay);
+  if (days.length === 0) return { pct: 0, detail: '暂无餐食记录' };
+  const avgKcal = Math.round(days.reduce((s, d) => s + byDay[d], 0) / days.length);
+  const target = 2200;
+  const ratio = avgKcal / target;
+  const pct = ratio >= 1
+    ? Math.max(0, Math.round(100 - (ratio - 1) * 100))  // over → penalty
+    : Math.round(ratio * 100);
+  // Avg protein
+  const avgProtein = Math.round(
+    recent.reduce((s, m) => s + (m.protein || 0), 0) / Math.max(1, recent.length)
+  );
+  return {
+    pct: Math.min(100, pct),
+    detail: `${days.length} 天 · 日均 ${avgKcal} 大卡 · 蛋白 ${avgProtein}g/餐`,
+  };
+}
+
+function computeExerciseWeek(snapshot) {
+  // Snapshot only carries today's workouts/steps. Show what we have +
+  // honest "this week's full data unavailable until backend exposes it".
+  const workoutsToday = (snapshot?.activity?.workouts || []).length;
+  const stepsToday = snapshot?.activity?.steps || 0;
+  const target = 5; // workouts/week — matches the contract example
+  // Heuristic: extrapolate from today only — clearly stub-y. Backend
+  // /progress will replace this.
+  const pct = workoutsToday >= 1 ? 60 : (stepsToday >= 8000 ? 40 : 20);
+  const stepsLabel = stepsToday >= 1000 ? `${stepsToday.toLocaleString()} 步` : '步数 < 1k';
+  return {
+    pct,
+    detail: workoutsToday > 0
+      ? `今日 ${workoutsToday} 次训练 · ${stepsLabel} (周聚合需后端 v0.4)`
+      : `今日 ${stepsLabel} · 无训练记录 (周聚合需后端 v0.4)`,
+  };
+}
+
+function computeSleepWeek(snapshot) {
+  // Only last night is in snapshot. Score relative to 8h target.
+  const sl = snapshot?.sleep?.lastNight;
+  if (!sl?.duration) {
+    return { pct: 0, detail: '暂无睡眠数据' };
+  }
+  const target = 8;
+  const ratio = sl.duration / target;
+  const pct = Math.min(100, Math.round(ratio * 100));
+  const hrv = sl.hrv != null ? `HRV ${Math.round(sl.hrv)}ms` : null;
+  const restingHr = sl.restingHR != null ? `静息 ${Math.round(sl.restingHR)}bpm` : null;
+  const extras = [hrv, restingHr].filter(Boolean).join(' · ');
+  return {
+    pct,
+    detail: `昨晚 ${sl.duration.toFixed(1)}h / 目标 ${target}h${extras ? ' · ' + extras : ''}`,
+  };
 }
 
 // ========== TODAY TAB ==========
